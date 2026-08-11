@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>项目进度看板</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- 侧边栏：项目列表 -->
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <div class="logo">📋 进度看板</div>
+        <button id="addProjectBtn" class="icon-btn" title="新建项目">＋</button>
+      </div>
+      <div class="sidebar-sub">我的项目</div>
+      <ul id="projectList" class="project-list"></ul>
+      <div class="sidebar-foot">
+        <span>数据本地保存</span>
+      </div>
+    </aside>
+
+    <!-- 主区域 -->
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1 id="boardTitle">项目看板</h1>
+          <span id="boardMeta" class="board-meta"></span>
+        </div>
+        <div class="topbar-right">
+          <input id="searchInput" class="search" type="text" placeholder="🔍 搜索任务 / 文档…" />
+          <button id="addDocBtn" class="btn-ghost">📄 新建文档</button>
+          <button id="addCardBtn" class="btn-primary">＋ 新建任务</button>
+        </div>
+      </header>
+
+      <!-- 总体进度 -->
+      <div class="progress-wrap">
+        <div class="progress-head">
+          <span>总体进度</span>
+          <span id="progressText">0 / 0</span>
+        </div>
+        <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+      </div>
+
+      <!-- 看板列容器 -->
+      <section id="board" class="board"></section>
+    </main>
+  </div>
+
+  <!-- 任务编辑弹窗 -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="modalTitle">新建任务</h2>
+        <button id="modalClose" type="button" class="icon-btn">✕</button>
+      </div>
+      <form id="cardForm" class="modal-body">
+        <input type="hidden" id="cardId" />
+        <input type="hidden" id="cardColumn" />
+        <label>标题 *
+          <input id="fTitle" type="text" required placeholder="任务标题" />
+        </label>
+        <label>描述
+          <textarea id="fDesc" rows="3" placeholder="补充信息（可选）"></textarea>
+        </label>
+        <div class="form-row">
+          <label>负责人
+            <input id="fAssignee" type="text" placeholder="如：张三" />
+          </label>
+          <label>截止日期
+            <input id="fDue" type="date" />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>优先级
+            <select id="fPriority">
+              <option value="low">低</option>
+              <option value="medium" selected>中</option>
+              <option value="high">高</option>
+            </select>
+          </label>
+          <label>所在列
+            <select id="fColumn"></select>
+          </label>
+        </div>
+        <label>标签（逗号分隔）
+          <input id="fTags" type="text" placeholder="前端, 紧急" />
+        </label>
+        <div class="modal-foot">
+          <button type="button" id="deleteCardBtn" class="btn-danger hidden">删除</button>
+          <div class="spacer"></div>
+          <button type="button" id="cancelBtn" class="btn-ghost modal-cancel">取消</button>
+          <button type="submit" class="btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 列编辑弹窗 -->
+  <div id="colModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="colModalTitle">新建列</h2>
+        <button id="colModalClose" type="button" class="icon-btn">✕</button>
+      </div>
+      <form id="colForm" class="modal-body">
+        <input type="hidden" id="colId" />
+        <label>列名称 *
+          <input id="colName" type="text" required placeholder="如：进行中" />
+        </label>
+        <div class="modal-foot">
+          <button type="button" id="deleteColBtn" class="btn-danger hidden">删除</button>
+          <div class="spacer"></div>
+          <button type="button" id="colCancelBtn" class="btn-ghost modal-cancel">取消</button>
+          <button type="submit" class="btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 文档编辑弹窗 -->
+  <div id="docModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="docModalTitle">新建文档</h2>
+        <button id="docModalClose" type="button" class="icon-btn">✕</button>
+      </div>
+      <form id="docForm" class="modal-body">
+        <input type="hidden" id="docId" />
+        <label>标题 *
+          <input id="docTitle" type="text" required placeholder="文档标题" />
+        </label>
+        <label>简介
+          <textarea id="docIntro" rows="5" placeholder="文档简介 / 摘要（可选）"></textarea>
+        </label>
+        <label>状态（自动同步到对应看板列）
+          <select id="docStatus"></select>
+        </label>
+        <div class="modal-foot">
+          <button type="button" id="deleteDocBtn" class="btn-danger hidden">删除</button>
+          <div class="spacer"></div>
+          <button type="button" id="docCancelBtn" class="btn-ghost modal-cancel">取消</button>
+          <button type="submit" class="btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 项目编辑弹窗 -->
+  <div id="projModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="projModalTitle">新建项目</h2>
+        <button id="projModalClose" type="button" class="icon-btn">✕</button>
+      </div>
+      <form id="projForm" class="modal-body">
+        <input type="hidden" id="projId" />
+        <label>项目名称 *
+          <input id="projName" type="text" required placeholder="如：APP 1.0 开发" />
+        </label>
+        <div class="modal-foot">
+          <button type="button" id="deleteProjBtn" class="btn-danger hidden">删除</button>
+          <div class="spacer"></div>
+          <button type="button" id="projCancelBtn" class="btn-ghost modal-cancel">取消</button>
+          <button type="submit" class="btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
