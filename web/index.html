@@ -68,6 +68,26 @@
               <select id="docStatus"></select>
             </label>
           </div>
+          <div class="doc-meta-row">
+            <label>负责人
+              <input id="docAssignee" type="text" placeholder="如：张三" />
+            </label>
+            <label>截止日期
+              <input id="docDue" type="date" />
+            </label>
+          </div>
+          <div class="doc-meta-row">
+            <label>优先级
+              <select id="docPriority">
+                <option value="low">低</option>
+                <option value="medium" selected>中</option>
+                <option value="high">高</option>
+              </select>
+            </label>
+            <label>标签（逗号分隔）
+              <input id="docTags" type="text" placeholder="前端, 紧急" />
+            </label>
+          </div>
           <label class="doc-label">简介</label>
           <textarea id="docIntro" class="doc-intro" rows="2" placeholder="一句话摘要，便于在看板卡片上快速了解（可选）"></textarea>
           <label class="doc-label">正文</label>

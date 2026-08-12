@@ -68,13 +68,15 @@ async function syncFromBackend() {
 /** 将指定项目的完整 state 推送到后端 */
 async function syncToBackend(project) {
   const cards = {};
-  project.columns.forEach(c => { cards[c.id] = c.cards; });
+  project.columns.forEach(c => { cards[c.id] = c.cards.map(card => ({
+    ...card, tags: JSON.stringify(card.tags || [])
+  })); });
   return backendFetch(`/projects/${project.id}/sync`, {
     method: 'PUT',
     body: JSON.stringify({
       name: project.name,
       columns: project.columns.map(c => ({ id: c.id, name: c.name, position: 0 })),
-      documents: project.documents,
+      documents: project.documents.map(d => ({ ...d, tags: JSON.stringify(d.tags || []) })),
       cards,
     }),
   });
@@ -124,6 +126,12 @@ function normalize(s) {
       if (typeof d.intro !== 'string') d.intro = '';
       if (typeof d.content !== 'string') d.content = '';
       if (!findColumn(p, d.status)) d.status = p.columns[0]?.id || '';
+      if (typeof d.assignee !== 'string') d.assignee = '';
+      if (typeof d.due !== 'string') d.due = '';
+      if (typeof d.priority !== 'string') d.priority = 'medium';
+      if (!Array.isArray(d.tags)) {
+        try { d.tags = JSON.parse(d.tags || '[]'); } catch (_) { d.tags = []; }
+      }
     });
   });
   return s;
@@ -367,15 +375,27 @@ function buildCard(card, colId) {
 
 function buildDocCard(doc) {
   const el = document.createElement('div');
-  el.className = 'card doc';
+  el.className = `card doc p-${doc.priority || 'medium'}`;
   el.draggable = true;
   el.dataset.cardId = doc.id;
   el.dataset.kind = 'doc';
   const intro = doc.intro ? `<div class="card-intro">${escapeHtml(doc.intro)}</div>` : '';
+  const pBadge = PRIORITY[doc.priority] ? `<span class="priority-badge ${PRIORITY[doc.priority].cls}">${PRIORITY[doc.priority].label}</span>` : '';
+  const due = doc.due ? (() => { const f = formatDue(doc.due); return `<span class="due ${f.over ? 'over' : ''}">📅 ${f.text}</span>`; })() : '';
+  const assignee = doc.assignee ? `<span class="assignee" title="负责人">👤 ${escapeHtml(doc.assignee)}</span>` : '';
+  const tagEls = (doc.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
   el.innerHTML = `
-    <div class="doc-badge">📄 文档</div>
+    <div class="card-meta">
+      <div class="doc-badge">📄 文档</div>
+      ${pBadge}
+      ${due}
+    </div>
     <div class="card-title">${escapeHtml(doc.title)}</div>
-    ${intro}`;
+    ${intro}
+    <div class="card-bottom">
+      ${assignee}
+      <div class="card-tags">${tagEls}</div>
+    </div>`;
   el.onclick = () => openDocView(doc.id);
   bindDrag(el, doc.id, 'doc');
   return el;
@@ -556,6 +576,10 @@ function openDocView(docId, projId) {
     document.getElementById('docTitle').value = d.title;
     document.getElementById('docIntro').value = d.intro || '';
     document.getElementById('docContent').value = d.content || '';
+    document.getElementById('docAssignee').value = d.assignee || '';
+    document.getElementById('docDue').value = d.due || '';
+    document.getElementById('docPriority').value = d.priority || 'medium';
+    document.getElementById('docTags').value = (d.tags || []).join(', ');
     fStatus.value = d.status;
     document.getElementById('docDeleteBtn').classList.remove('hidden');
   } else {
@@ -563,6 +587,10 @@ function openDocView(docId, projId) {
     document.getElementById('docTitle').value = '';
     document.getElementById('docIntro').value = '';
     document.getElementById('docContent').value = '';
+    document.getElementById('docAssignee').value = '';
+    document.getElementById('docDue').value = '';
+    document.getElementById('docPriority').value = 'medium';
+    document.getElementById('docTags').value = '';
     fStatus.value = project.columns[0]?.id || '';
     document.getElementById('docDeleteBtn').classList.add('hidden');
   }
@@ -586,6 +614,10 @@ function saveDoc() {
     intro: document.getElementById('docIntro').value.trim(),
     content: document.getElementById('docContent').value,
     status: document.getElementById('docStatus').value,
+    assignee: document.getElementById('docAssignee').value.trim(),
+    due: document.getElementById('docDue').value,
+    priority: document.getElementById('docPriority').value,
+    tags: document.getElementById('docTags').value.split(',').map(s => s.trim()).filter(Boolean),
   };
   if (id) {
     const d = project.documents.find(x => x.id === id);

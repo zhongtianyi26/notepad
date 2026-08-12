@@ -125,6 +125,10 @@ def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
             intro=doc_data.intro,
             content=doc_data.content,
             status=doc_data.status,
+            assignee=doc_data.assignee,
+            due=doc_data.due,
+            priority=doc_data.priority,
+            tags=doc_data.tags,
         ))
 
     db.commit()
@@ -251,6 +255,10 @@ def add_document(project_id: str, body: DocumentCreate, db: Session = Depends(ge
         intro=body.intro,
         content=body.content,
         status=body.status,
+        assignee=body.assignee,
+        due=body.due,
+        priority=body.priority,
+        tags=body.tags,
     )
     db.add(doc)
     db.commit()
@@ -337,6 +345,10 @@ def sync_project(project_id: str, body: ProjectSync, db: Session = Depends(get_d
             intro=doc_data.intro,
             content=doc_data.content,
             status=doc_data.status,
+            assignee=doc_data.assignee,
+            due=doc_data.due,
+            priority=doc_data.priority,
+            tags=doc_data.tags,
         ))
 
     db.commit()

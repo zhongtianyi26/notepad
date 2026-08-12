@@ -69,6 +69,10 @@ class DocumentBase(BaseModel):
     intro: str = ""
     content: str = ""
     status: str = ""                # 列 id
+    assignee: str = ""
+    due: str = ""
+    priority: str = "medium"        # high / medium / low
+    tags: str = "[]"                # JSON 字符串
 
 class DocumentCreate(DocumentBase):
     id: str
@@ -78,6 +82,10 @@ class DocumentUpdate(BaseModel):
     intro: Optional[str] = None
     content: Optional[str] = None
     status: Optional[str] = None
+    assignee: Optional[str] = None
+    due: Optional[str] = None
+    priority: Optional[str] = None
+    tags: Optional[str] = None
 
 class DocumentOut(DocumentBase):
     id: str
