@@ -17,6 +17,9 @@ const COLUMN_COLORS = ['#4c6ef5', '#f08c00', '#7048e8', '#2f9e44', '#e8590c', '#
 let state = load();
 let activeProjectId = state.projects[0]?.id || null;
 let searchTerm = '';
+// 侧边栏展开状态（项目 id 集合）与当前正在编辑文档所属的项目
+const expandedSet = new Set();
+let currentDocProjectId = null;
 
 /* ---------- 工具 ---------- */
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
@@ -38,6 +41,12 @@ function normalize(s) {
     if (!Array.isArray(p.columns)) p.columns = [];
     if (!Array.isArray(p.documents)) p.documents = [];
     p.columns.forEach(c => { if (!Array.isArray(c.cards)) c.cards = []; });
+    p.documents.forEach(d => {
+      if (typeof d.title !== 'string' || !d.title) d.title = '未命名文档';
+      if (typeof d.intro !== 'string') d.intro = '';
+      if (typeof d.content !== 'string') d.content = '';
+      if (!findColumn(p, d.status)) d.status = p.columns[0]?.id || '';
+    });
   });
   return s;
 }
@@ -89,12 +98,56 @@ function renderProjects() {
   ul.innerHTML = '';
   state.projects.forEach(p => {
     const total = p.columns.reduce((s, c) => s + c.cards.length, 0) + p.documents.length;
+    const expanded = expandedSet.has(p.id) || p.id === activeProjectId;
+
     const li = document.createElement('li');
-    li.className = p.id === activeProjectId ? 'active' : '';
-    li.innerHTML = `<span class="pname">${escapeHtml(p.name)}</span><span class="pcount">${total}</span>`;
-    li.onclick = () => { activeProjectId = p.id; render(); };
+
+    const row = document.createElement('div');
+    row.className = 'project-row' + (p.id === activeProjectId ? ' active' : '');
+    row.innerHTML = `
+      <span class="toggle-arrow ${expanded ? '' : 'collapsed'}" data-toggle="${p.id}">▾</span>
+      <span class="pname">${escapeHtml(p.name)}</span>
+      <span class="pcount">${total}</span>`;
+    row.onclick = () => selectProject(p.id);
+    row.querySelector('[data-toggle]').onclick = (e) => {
+      e.stopPropagation();
+      if (expandedSet.has(p.id)) expandedSet.delete(p.id); else expandedSet.add(p.id);
+      renderProjects();
+    };
+    li.appendChild(row);
+
+    const docUl = document.createElement('ul');
+    docUl.className = 'doc-items' + (expanded ? '' : ' hidden');
+    if (p.documents.length === 0) {
+      docUl.innerHTML = `<li class="doc-empty">暂无文档</li>`;
+    } else {
+      p.documents.forEach(d => {
+        const dli = document.createElement('li');
+        dli.dataset.docId = d.id;
+        if (currentDocProjectId === p.id && document.getElementById('docId').value === d.id) {
+          dli.className = 'active-doc';
+        }
+        dli.innerHTML = `<span class="doc-ico">📄</span><span class="doc-name">${escapeHtml(d.title || '未命名')}</span>`;
+        dli.onclick = () => openDocView(d.id, p.id);
+        docUl.appendChild(dli);
+      });
+    }
+    const addLi = document.createElement('li');
+    addLi.className = 'doc-add';
+    addLi.innerHTML = `<span class="doc-ico">＋</span><span>新建文档</span>`;
+    addLi.onclick = () => openDocView(null, p.id);
+    docUl.appendChild(addLi);
+    li.appendChild(docUl);
+
     ul.appendChild(li);
   });
+}
+
+function selectProject(id) {
+  activeProjectId = id;
+  expandedSet.add(id);
+  showBoard();
+  render();
 }
 
 function renderBoard() {
@@ -223,7 +276,7 @@ function buildDocCard(doc) {
     <div class="doc-badge">📄 文档</div>
     <div class="card-title">${escapeHtml(doc.title)}</div>
     ${intro}`;
-  el.onclick = () => openDocModal(doc.id);
+  el.onclick = () => openDocView(doc.id);
   bindDrag(el, doc.id, 'doc');
   return el;
 }
@@ -371,44 +424,66 @@ document.getElementById('deleteCardBtn').onclick = () => {
 };
 
 /* ============================================================
- * 文档弹窗
+ * 文档全页面编辑视图
  * ============================================================ */
-const docModal = document.getElementById('docModal');
+const docView = document.getElementById('docView');
 const docForm = document.getElementById('docForm');
 
-function openDocModal(docId) {
-  const project = getActiveProject();
+function showBoard() {
+  document.getElementById('docView').classList.add('hidden');
+  document.getElementById('boardArea').classList.remove('hidden');
+}
+function showDocView() {
+  document.getElementById('boardArea').classList.add('hidden');
+  document.getElementById('docView').classList.remove('hidden');
+}
+
+function openDocView(docId, projId) {
+  const pid = projId || activeProjectId;
+  const project = state.projects.find(p => p.id === pid);
+  if (!project) { openProjModal(null); return; }
+  currentDocProjectId = pid;
+  if (pid !== activeProjectId) { activeProjectId = pid; expandedSet.add(pid); renderProjects(); }
+
   const fStatus = document.getElementById('docStatus');
   fStatus.innerHTML = project.columns
     .map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
 
   if (docId) {
     const d = project.documents.find(x => x.id === docId);
-    document.getElementById('docModalTitle').textContent = '编辑文档';
     document.getElementById('docId').value = d.id;
     document.getElementById('docTitle').value = d.title;
     document.getElementById('docIntro').value = d.intro || '';
+    document.getElementById('docContent').value = d.content || '';
     fStatus.value = d.status;
-    document.getElementById('deleteDocBtn').classList.remove('hidden');
+    document.getElementById('docDeleteBtn').classList.remove('hidden');
   } else {
-    document.getElementById('docModalTitle').textContent = '新建文档';
-    docForm.reset();
     document.getElementById('docId').value = '';
+    document.getElementById('docTitle').value = '';
+    document.getElementById('docIntro').value = '';
+    document.getElementById('docContent').value = '';
     fStatus.value = project.columns[0]?.id || '';
-    document.getElementById('deleteDocBtn').classList.add('hidden');
+    document.getElementById('docDeleteBtn').classList.add('hidden');
   }
-  docModal.classList.remove('hidden');
+  showDocView();
+  renderProjects();   // 刷新侧边栏高亮
   document.getElementById('docTitle').focus();
 }
-function closeDocModal() { docModal.classList.add('hidden'); }
 
-docForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const project = getActiveProject();
+function closeDocView() {
+  currentDocProjectId = null;
+  showBoard();
+  render();
+}
+
+function saveDoc() {
+  const project = state.projects.find(p => p.id === currentDocProjectId);
+  if (!project) return;
   const id = document.getElementById('docId').value;
   const data = {
-    title: document.getElementById('docTitle').value.trim(),
+    title: document.getElementById('docTitle').value.trim() || '未命名文档',
     intro: document.getElementById('docIntro').value.trim(),
+    content: document.getElementById('docContent').value,
     status: document.getElementById('docStatus').value,
   };
   if (id) {
@@ -418,16 +493,24 @@ docForm.addEventListener('submit', (e) => {
     project.documents.push({ id: uid(), ...data });
   }
   save();
-  closeDocModal();
-  render();
-});
+  closeDocView();   // 返回看板并刷新（侧边栏列表 + 看板同步）
+}
 
-document.getElementById('deleteDocBtn').onclick = () => {
+docForm.addEventListener('submit', (e) => { e.preventDefault(); saveDoc(); });
+document.getElementById('docSaveBtn').onclick = saveDoc;
+document.getElementById('docBackBtn').onclick = () => {
+  const dirty = document.getElementById('docTitle').value.trim()
+    || document.getElementById('docContent').value.trim()
+    || document.getElementById('docIntro').value.trim();
+  if (dirty && !confirm('放弃当前编辑并返回看板？未保存的内容将丢失。')) return;
+  closeDocView();
+};
+document.getElementById('docDeleteBtn').onclick = () => {
   const id = document.getElementById('docId').value;
-  const project = getActiveProject();
-  if (confirm('确定删除该文档？')) {
+  const project = state.projects.find(p => p.id === currentDocProjectId);
+  if (id && project && confirm('确定删除该文档？')) {
     project.documents = project.documents.filter(d => d.id !== id);
-    save(); closeDocModal(); render();
+    save(); closeDocView();
   }
 };
 
@@ -540,11 +623,7 @@ document.getElementById('addCardBtn').onclick = () => {
   if (!project) { openProjModal(null); return; }
   openCardModal(null, project.columns[0]?.id);
 };
-document.getElementById('addDocBtn').onclick = () => {
-  const project = getActiveProject();
-  if (!project) { openProjModal(null); return; }
-  openDocModal(null);
-};
+document.getElementById('addDocBtn').onclick = () => openDocView(null);
 document.getElementById('addProjectBtn').onclick = () => openProjModal(null);
 document.getElementById('searchInput').addEventListener('input', (e) => {
   searchTerm = e.target.value; renderBoard();
@@ -560,9 +639,14 @@ function bindClose(m, closeFn) {
 bindClose(modal, closeCardModal);
 bindClose(colModal, closeColModal);
 bindClose(projModal, closeProjModal);
-bindClose(docModal, closeDocModal);
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { closeCardModal(); closeColModal(); closeProjModal(); closeDocModal(); }
+  if (e.key === 'Escape') {
+    if (docView && !docView.classList.contains('hidden')) {
+      document.getElementById('docBackBtn').click();
+    } else {
+      closeCardModal(); closeColModal(); closeProjModal();
+    }
+  }
 });
 
 /* ---------- 启动 ---------- */

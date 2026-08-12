@@ -23,29 +23,56 @@
 
     <!-- 主区域 -->
     <main class="main">
-      <header class="topbar">
-        <div class="topbar-left">
-          <h1 id="boardTitle">项目看板</h1>
-          <span id="boardMeta" class="board-meta"></span>
-        </div>
-        <div class="topbar-right">
-          <input id="searchInput" class="search" type="text" placeholder="🔍 搜索任务 / 文档…" />
-          <button id="addDocBtn" class="btn-ghost">📄 新建文档</button>
-          <button id="addCardBtn" class="btn-primary">＋ 新建任务</button>
-        </div>
-      </header>
+      <!-- 看板区域 -->
+      <div id="boardArea">
+        <header class="topbar">
+          <div class="topbar-left">
+            <h1 id="boardTitle">项目看板</h1>
+            <span id="boardMeta" class="board-meta"></span>
+          </div>
+          <div class="topbar-right">
+            <input id="searchInput" class="search" type="text" placeholder="🔍 搜索任务 / 文档…" />
+            <button id="addDocBtn" class="btn-ghost">📄 新建文档</button>
+            <button id="addCardBtn" class="btn-primary">＋ 新建任务</button>
+          </div>
+        </header>
 
-      <!-- 总体进度 -->
-      <div class="progress-wrap">
-        <div class="progress-head">
-          <span>总体进度</span>
-          <span id="progressText">0 / 0</span>
+        <!-- 总体进度 -->
+        <div class="progress-wrap">
+          <div class="progress-head">
+            <span>总体进度</span>
+            <span id="progressText">0 / 0</span>
+          </div>
+          <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
         </div>
-        <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+
+        <!-- 看板列容器 -->
+        <section id="board" class="board"></section>
       </div>
 
-      <!-- 看板列容器 -->
-      <section id="board" class="board"></section>
+      <!-- 文档全页面编辑视图 -->
+      <section id="docView" class="doc-view hidden">
+        <div class="doc-toolbar">
+          <button id="docBackBtn" class="btn-ghost" type="button">← 返回看板</button>
+          <div class="doc-toolbar-right">
+            <button id="docDeleteBtn" class="btn-danger hidden" type="button">删除</button>
+            <button id="docSaveBtn" class="btn-primary" type="button">保存</button>
+          </div>
+        </div>
+        <form id="docForm" class="doc-edit">
+          <input type="hidden" id="docId" />
+          <input id="docTitle" class="doc-title-input" type="text" placeholder="未命名文档" />
+          <div class="doc-meta-row">
+            <label>状态（自动同步到看板对应列）
+              <select id="docStatus"></select>
+            </label>
+          </div>
+          <label class="doc-label">简介</label>
+          <textarea id="docIntro" class="doc-intro" rows="2" placeholder="一句话摘要，便于在看板卡片上快速了解（可选）"></textarea>
+          <label class="doc-label">正文</label>
+          <textarea id="docContent" class="doc-content" placeholder="在这里撰写文档内容…"></textarea>
+        </form>
+      </section>
     </main>
   </div>
 
@@ -114,34 +141,6 @@
           <button type="button" id="deleteColBtn" class="btn-danger hidden">删除</button>
           <div class="spacer"></div>
           <button type="button" id="colCancelBtn" class="btn-ghost modal-cancel">取消</button>
-          <button type="submit" class="btn-primary">保存</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 文档编辑弹窗 -->
-  <div id="docModal" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-head">
-        <h2 id="docModalTitle">新建文档</h2>
-        <button id="docModalClose" type="button" class="icon-btn">✕</button>
-      </div>
-      <form id="docForm" class="modal-body">
-        <input type="hidden" id="docId" />
-        <label>标题 *
-          <input id="docTitle" type="text" required placeholder="文档标题" />
-        </label>
-        <label>简介
-          <textarea id="docIntro" rows="5" placeholder="文档简介 / 摘要（可选）"></textarea>
-        </label>
-        <label>状态（自动同步到对应看板列）
-          <select id="docStatus"></select>
-        </label>
-        <div class="modal-foot">
-          <button type="button" id="deleteDocBtn" class="btn-danger hidden">删除</button>
-          <div class="spacer"></div>
-          <button type="button" id="docCancelBtn" class="btn-ghost modal-cancel">取消</button>
           <button type="submit" class="btn-primary">保存</button>
         </div>
       </form>
