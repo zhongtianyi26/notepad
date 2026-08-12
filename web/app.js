@@ -13,6 +13,81 @@ const PRIORITY = {
 };
 const COLUMN_COLORS = ['#4c6ef5', '#f08c00', '#7048e8', '#2f9e44', '#e8590c', '#1098ad'];
 
+/* ============================================================
+ * 后端 API 适配层
+ * 策略：localStorage 为主（即时），后端为镜像（异步同步）。
+ *       后端不可达时所有功能照常，丢失的只是跨设备同步。
+ * ============================================================ */
+const API_BASE = 'http://127.0.0.1:8080/api';
+
+/** 封装 fetch，统一错误处理——后端不通时静默返回 null */
+async function backendFetch(path, opts = {}) {
+  try {
+    const res = await fetch(API_BASE + path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...opts,
+    });
+    if (!res.ok) {
+      console.warn('[api]', res.status, path);
+      return null;
+    }
+    if (res.status === 204) return true;                 // no-content（删除成功）
+    return await res.json();
+  } catch (e) {
+    console.warn('[api] unreachable:', e.message);
+    return null;
+  }
+}
+
+/** 启动时从后端拉取项目列表，本地为空则用后端数据填充 */
+async function syncFromBackend() {
+  const projects = await backendFetch('/projects');
+  if (!projects || !projects.length) return;
+  // 本地已有数据 → 以后端补充（只加本地不存在的项目）
+  if (state.projects.length) {
+    for (const p of projects) {
+      if (!state.projects.find(lp => lp.id === p.id)) {
+        const full = await backendFetch(`/projects/${p.id}`);
+        if (full && full.columns) state.projects.push(full);
+      }
+    }
+  } else {
+    // 本地空 → 全量加载后端数据
+    for (const p of projects) {
+      const full = await backendFetch(`/projects/${p.id}`);
+      if (full) state.projects.push(full);
+    }
+    if (state.projects.length) {
+      activeProjectId = state.projects[0].id;
+      expandedSet.add(activeProjectId);
+    }
+  }
+  save(); render();
+}
+
+/** 将指定项目的完整 state 推送到后端 */
+async function syncToBackend(project) {
+  const cards = {};
+  project.columns.forEach(c => { cards[c.id] = c.cards; });
+  return backendFetch(`/projects/${project.id}/sync`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      name: project.name,
+      columns: project.columns.map(c => ({ id: c.id, name: c.name, position: 0 })),
+      documents: project.documents,
+      cards,
+    }),
+  });
+}
+
+/** 从后端删除项目 */
+async function deleteFromBackend(projectId) {
+  // 204 no-content → 不解析 body
+  try {
+    await fetch(`${API_BASE}/projects/${projectId}`, { method: 'DELETE' });
+  } catch (e) { console.warn('[api] delete unreachable:', e.message); }
+}
+
 /* ---------- 状态 ---------- */
 let state = load();
 let activeProjectId = state.projects[0]?.id || null;
@@ -57,6 +132,9 @@ function normalize(s) {
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
   catch (e) { console.warn('保存失败', e); }
+  // 异步推送到后端（不阻塞 UI）
+  const p = getActiveProject();
+  if (p) syncToBackend(p);
 }
 
 function getActiveProject() {
@@ -615,15 +693,24 @@ projForm.addEventListener('submit', (e) => {
   const name = document.getElementById('projName').value.trim();
   if (id) {
     state.projects.find(x => x.id === id).name = name;
+    // 后端重命名
+    backendFetch(`/projects/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
   } else {
-    const p = { id: uid(), name, columns: [
-      { id: uid(), name: '待办', cards: [] },
-      { id: uid(), name: '进行中', cards: [] },
-      { id: uid(), name: '已完成', cards: [] },
-    ], documents: [] };
+    const pid = uid();
+    const cols = [
+      { id: uid(), name: '待办', position: 0 },
+      { id: uid(), name: '进行中', position: 1 },
+      { id: uid(), name: '已完成', position: 2 },
+    ];
+    const p = { id: pid, name, columns: cols.map(c => ({ ...c, cards: [] })), documents: [] };
     state.projects.push(p);
-    activeProjectId = p.id;
-    expandedSet.add(p.id);   // 新建项目默认展开
+    activeProjectId = pid;
+    expandedSet.add(pid);
+    // 后端新建
+    backendFetch('/projects', {
+      method: 'POST',
+      body: JSON.stringify({ id: pid, name, columns: cols, documents: [] }),
+    });
   }
   save(); closeProjModal(); render();
 });
@@ -633,14 +720,16 @@ document.getElementById('deleteProjectBtn').onclick = () => {
   const project = getActiveProject();
   if (!project) return;
   if (!confirm(`确定删除项目「${project.name}」及其所有任务与文档？此操作不可恢复。`)) return;
-  state.projects = state.projects.filter(p => p.id !== project.id);
+  const delId = project.id;
+  state.projects = state.projects.filter(p => p.id !== delId);
   if (state.projects.length === 0) {
     activeProjectId = null;
-  } else if (activeProjectId === project.id) {
+  } else if (activeProjectId === delId) {
     activeProjectId = state.projects[0].id;
     expandedSet.add(activeProjectId);
   }
   save(); render();
+  deleteFromBackend(delId);
 };
 
 /* ============================================================
@@ -679,3 +768,5 @@ document.addEventListener('keydown', (e) => {
 
 /* ---------- 启动 ---------- */
 render();
+// 启动后异步从后端拉取数据（本地为空时会自动填充）
+syncFromBackend();

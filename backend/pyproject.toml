@@ -1,0 +1,14 @@
+[project]
+name = "notepad"
+version = "0.1.1"
+description = "mini-Affine 个人看板与知识管理 — FastAPI 后端"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "sqlalchemy>=2.0",
+]
+
+[tool.uv]
+index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
