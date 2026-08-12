@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Notepad API",
     description="mini-Affine 看板与知识管理 — 后端服务",
-    version="0.1.1",
+    version="0.2.1",
     lifespan=lifespan,
 )
 

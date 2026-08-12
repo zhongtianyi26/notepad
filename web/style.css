@@ -180,7 +180,7 @@ body {
   flex: 1; display: flex; gap: 16px; padding: 16px 24px 24px;
   overflow-x: auto; align-items: flex-start;
 }
-.column {
+.kanban-col {
   background: var(--surface-2);
   border-radius: 12px;
   width: 290px;
@@ -189,24 +189,24 @@ body {
   flex-direction: column;
   max-height: 100%;
 }
-.column.drag-over { outline: 2px dashed var(--primary); outline-offset: -2px; }
-.column-head {
+.kanban-col.drag-over { outline: 2px dashed var(--primary); outline-offset: -2px; }
+.col-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 14px 10px;
 }
-.column-title {
+.col-name {
   font-weight: 700; font-size: 14px; cursor: pointer;
   display: flex; align-items: center; gap: 6px;
 }
-.column-title .dot { width: 9px; height: 9px; border-radius: 50%; }
-.column-count {
+.col-name .dot { width: 9px; height: 9px; border-radius: 50%; }
+.col-count {
   font-size: 12px; color: var(--text-soft);
   background: var(--surface); padding: 1px 8px; border-radius: 10px;
 }
-.column-actions { display: flex; gap: 2px; }
-.column-actions .icon-btn { font-size: 15px; color: var(--text-soft); width: 26px; height: 26px; }
-.column-actions .icon-btn:hover { background: rgba(0,0,0,.06); color: var(--text); }
-.column-body {
+.col-actions { display: flex; gap: 2px; }
+.col-actions .icon-btn { font-size: 15px; color: var(--text-soft); width: 26px; height: 26px; }
+.col-actions .icon-btn:hover { background: rgba(0,0,0,.06); color: var(--text); }
+.col-body {
   padding: 4px 10px 10px; overflow-y: auto; flex: 1; min-height: 40px;
 }
 .col-add {
