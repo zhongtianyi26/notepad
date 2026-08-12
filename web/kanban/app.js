@@ -18,8 +18,11 @@ let state = load();
 let activeProjectId = state.projects[0]?.id || null;
 let searchTerm = '';
 // 侧边栏展开状态（项目 id 集合）与当前正在编辑文档所属的项目
+// 展开与否完全由 expandedSet 决定；激活项目仅在首次/选中时默认展开一次，
+// 之后用户点箭头可真正收起（不再强制保持展开）。
 const expandedSet = new Set();
 let currentDocProjectId = null;
+if (activeProjectId) expandedSet.add(activeProjectId);
 
 /* ---------- 工具 ---------- */
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
@@ -98,7 +101,9 @@ function renderProjects() {
   ul.innerHTML = '';
   state.projects.forEach(p => {
     const total = p.columns.reduce((s, c) => s + c.cards.length, 0) + p.documents.length;
-    const expanded = expandedSet.has(p.id) || p.id === activeProjectId;
+    // 展开状态完全由 expandedSet 控制：激活项目默认已在初始化/选中时加入，
+    // 用户点箭头可随时从集合中增删，实现真正的折叠/展开。
+    const expanded = expandedSet.has(p.id);
 
     const li = document.createElement('li');
 
@@ -108,12 +113,16 @@ function renderProjects() {
       <span class="toggle-arrow ${expanded ? '' : 'collapsed'}" data-toggle="${p.id}">▾</span>
       <span class="pname">${escapeHtml(p.name)}</span>
       <span class="pcount">${total}</span>`;
-    row.onclick = () => selectProject(p.id);
+    // 箭头：独占“折叠/展开”，不依赖 stopPropagation 阻止整行点击，
+    // 因为整行已不再绑定切换逻辑（见下方 .pname/.pcount）。
     row.querySelector('[data-toggle]').onclick = (e) => {
       e.stopPropagation();
       if (expandedSet.has(p.id)) expandedSet.delete(p.id); else expandedSet.add(p.id);
       renderProjects();
     };
+    // 切换项目：只绑定在项目名与计数上，避免与箭头折叠冲突
+    row.querySelector('.pname').onclick = () => selectProject(p.id);
+    row.querySelector('.pcount').onclick = () => selectProject(p.id);
     li.appendChild(row);
 
     const docUl = document.createElement('ul');
@@ -236,6 +245,19 @@ function renderBoard() {
   addCol.innerHTML = `<button title="新建列">＋</button>`;
   addCol.querySelector('button').onclick = () => openColModal(null);
   board.appendChild(addCol);
+}
+
+function deleteColumn(colId) {
+  const project = getActiveProject();
+  if (project.columns.length <= 1) { alert('至少保留一列'); return; }
+  const col = findColumn(project, colId);
+  if (!col) return;
+  const docCount = project.documents.filter(d => d.status === colId).length;
+  const itemCount = col.cards.length + docCount;
+  if (itemCount && !confirm(`该列有 ${itemCount} 个事项（含 ${docCount} 个文档），删除后一并丢失，确定？`)) return;
+  project.columns = project.columns.filter(c => c.id !== colId);
+  project.documents = project.documents.filter(d => d.status !== colId);
+  save(); render();
 }
 
 function buildCard(card, colId) {
@@ -443,7 +465,8 @@ function openDocView(docId, projId) {
   const project = state.projects.find(p => p.id === pid);
   if (!project) { openProjModal(null); return; }
   currentDocProjectId = pid;
-  if (pid !== activeProjectId) { activeProjectId = pid; expandedSet.add(pid); renderProjects(); }
+  expandedSet.add(pid);   // 打开文档时确保所属项目展开，便于看到高亮
+  if (pid !== activeProjectId) { activeProjectId = pid; renderProjects(); }
 
   const fStatus = document.getElementById('docStatus');
   fStatus.innerHTML = project.columns
@@ -576,12 +599,10 @@ function openProjModal(projId) {
     document.getElementById('projModalTitle').textContent = '编辑项目';
     document.getElementById('projId').value = p.id;
     document.getElementById('projName').value = p.name;
-    document.getElementById('deleteProjBtn').classList.remove('hidden');
   } else {
     document.getElementById('projModalTitle').textContent = '新建项目';
     projForm.reset();
     document.getElementById('projId').value = '';
-    document.getElementById('deleteProjBtn').classList.add('hidden');
   }
   projModal.classList.remove('hidden');
   document.getElementById('projName').focus();
@@ -602,17 +623,24 @@ projForm.addEventListener('submit', (e) => {
     ], documents: [] };
     state.projects.push(p);
     activeProjectId = p.id;
+    expandedSet.add(p.id);   // 新建项目默认展开
   }
   save(); closeProjModal(); render();
 });
 
-document.getElementById('deleteProjBtn').onclick = () => {
-  const id = document.getElementById('projId').value;
-  if (state.projects.length <= 1) { alert('至少保留一个项目'); return; }
-  if (!confirm('确定删除该项目及其所有任务与文档？')) return;
-  state.projects = state.projects.filter(p => p.id !== id);
-  if (activeProjectId === id) activeProjectId = state.projects[0].id;
-  save(); closeProjModal(); render();
+/* 顶栏「删除项目」：删除当前激活项目，二次确认 */
+document.getElementById('deleteProjectBtn').onclick = () => {
+  const project = getActiveProject();
+  if (!project) return;
+  if (!confirm(`确定删除项目「${project.name}」及其所有任务与文档？此操作不可恢复。`)) return;
+  state.projects = state.projects.filter(p => p.id !== project.id);
+  if (state.projects.length === 0) {
+    activeProjectId = null;
+  } else if (activeProjectId === project.id) {
+    activeProjectId = state.projects[0].id;
+    expandedSet.add(activeProjectId);
+  }
+  save(); render();
 };
 
 /* ============================================================

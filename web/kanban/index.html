@@ -31,6 +31,7 @@
             <span id="boardMeta" class="board-meta"></span>
           </div>
           <div class="topbar-right">
+            <button id="deleteProjectBtn" class="btn-danger-ghost" type="button" title="删除当前项目">🗑 删除项目</button>
             <input id="searchInput" class="search" type="text" placeholder="🔍 搜索任务 / 文档…" />
             <button id="addDocBtn" class="btn-ghost">📄 新建文档</button>
             <button id="addCardBtn" class="btn-primary">＋ 新建任务</button>
@@ -160,7 +161,6 @@
           <input id="projName" type="text" required placeholder="如：APP 1.0 开发" />
         </label>
         <div class="modal-foot">
-          <button type="button" id="deleteProjBtn" class="btn-danger hidden">删除</button>
           <div class="spacer"></div>
           <button type="button" id="projCancelBtn" class="btn-ghost modal-cancel">取消</button>
           <button type="submit" class="btn-primary">保存</button>

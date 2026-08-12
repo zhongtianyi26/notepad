@@ -64,9 +64,13 @@ body {
 .project-row:hover { background: var(--sidebar-2); }
 .project-row.active { background: var(--primary); color: #fff; }
 .project-row .toggle-arrow {
-  font-size: 10px; width: 14px; text-align: center;
-  color: #8a93a6; transition: transform .15s; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; font-size: 13px; flex-shrink: 0;
+  color: #8a93a6; cursor: pointer; border-radius: 6px;
+  transition: transform .15s, background .15s, color .15s;
 }
+.project-row .toggle-arrow:hover { background: rgba(255,255,255,.12); color: #fff; }
+.project-row.active .toggle-arrow { color: rgba(255,255,255,.85); }
 .project-row .toggle-arrow.collapsed { transform: rotate(-90deg); }
 .project-row .pname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-row .pcount {
@@ -141,6 +145,12 @@ body {
   padding: 9px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;
 }
 .btn-danger:hover { background: var(--danger); color: #fff; }
+.btn-danger-ghost {
+  background: #fff; color: var(--danger); border: 1px solid var(--danger);
+  padding: 9px 14px; border-radius: 8px; font-size: 14px; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.btn-danger-ghost:hover { background: var(--danger); color: #fff; }
 
 .icon-btn {
   background: transparent; border: none; color: inherit;
