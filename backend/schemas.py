@@ -8,6 +8,28 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field
 
+# ──── User（用户与认证） ────
+
+class UserCreate(BaseModel):
+    username: str = Field(..., min_length=2, max_length=64)
+    password: str = Field(..., min_length=6, max_length=128)
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+class UserOut(BaseModel):
+    id: str
+    username: str
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
+
 # ──── Card（任务卡片） ────
 
 class CardBase(BaseModel):

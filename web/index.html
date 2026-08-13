@@ -7,6 +7,28 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- 登录 / 注册视图 -->
+  <div id="authOverlay" class="auth-overlay hidden">
+    <div class="auth-card">
+      <div class="auth-logo">📋 进度看板</div>
+      <h2 id="authTitle">登录</h2>
+      <form id="authForm" class="auth-form">
+        <label>用户名
+          <input id="authUsername" type="text" required placeholder="用户名" autocomplete="username" />
+        </label>
+        <label>密码
+          <input id="authPassword" type="password" required placeholder="密码（至少 6 位）" autocomplete="current-password" />
+        </label>
+        <div id="authError" class="auth-error hidden"></div>
+        <button type="submit" class="btn-primary auth-submit" id="authSubmit">登录</button>
+      </form>
+      <div class="auth-switch">
+        <span id="authSwitchText">还没有账号？</span>
+        <a href="#" id="authSwitchLink">去注册</a>
+      </div>
+    </div>
+  </div>
+
   <div class="app">
     <!-- 侧边栏：项目列表 -->
     <aside class="sidebar">
@@ -17,7 +39,8 @@
       <div class="sidebar-sub">我的项目</div>
       <ul id="projectList" class="project-list"></ul>
       <div class="sidebar-foot">
-        <span>数据本地保存</span>
+        <span id="currentUser" class="current-user"></span>
+        <button id="logoutBtn" class="btn-ghost logout-btn" type="button">退出</button>
       </div>
     </aside>
 

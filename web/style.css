@@ -372,3 +372,52 @@ body {
 .doc-edit select:focus, .doc-edit textarea:focus { border-color: var(--primary); }
 .doc-intro { width: 100%; resize: vertical; }
 .doc-content { width: 100%; min-height: 360px; resize: vertical; line-height: 1.75; font-size: 15px; }
+
+/* ---------- 登录 / 注册 ---------- */
+.auth-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(31, 39, 51, 0.45);
+}
+.auth-overlay.hidden { display: none; }
+.auth-card {
+  width: 360px; max-width: 92vw;
+  background: var(--surface); border-radius: 16px;
+  padding: 32px 32px 24px;
+  box-shadow: var(--shadow-lg);
+}
+.auth-logo { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+.auth-card h2 {
+  text-align: center; font-size: 16px; font-weight: 600;
+  color: var(--text); margin-bottom: 20px;
+}
+.auth-form { display: flex; flex-direction: column; gap: 14px; }
+.auth-form label {
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 13px; color: var(--text-soft); font-weight: 600;
+}
+.auth-form input {
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 14px; color: var(--text); outline: none; font-family: inherit;
+}
+.auth-form input:focus { border-color: var(--primary); }
+.auth-submit { width: 100%; padding: 11px; font-size: 15px; }
+.auth-error {
+  background: #fcebeb; color: #a32d2d; font-size: 13px;
+  padding: 8px 12px; border-radius: 8px; text-align: center;
+}
+.auth-error.hidden { display: none; }
+.auth-switch {
+  margin-top: 18px; text-align: center; font-size: 13px; color: var(--text-soft);
+}
+.auth-switch a { color: var(--primary); text-decoration: none; font-weight: 600; }
+
+.current-user {
+  font-size: 12px; color: #aeb6c4; display: block; margin-bottom: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.logout-btn {
+  width: 100%; padding: 6px 10px; font-size: 12px;
+  background: var(--sidebar-2); color: #e8ecf3; border: 1px solid #3a4656;
+}
+.logout-btn:hover { background: #3a4656; }

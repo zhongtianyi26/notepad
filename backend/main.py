@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from database import engine, Base
 from routers import router
+from auth_router import router as auth_router
 
 
 @asynccontextmanager
@@ -47,6 +48,7 @@ app.add_middleware(
 
 # API 路由
 app.include_router(router)
+app.include_router(auth_router)
 
 
 @app.get("/health")

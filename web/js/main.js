@@ -1,4 +1,4 @@
-/* main.js — 入口：事件绑定、键盘控制、启动
+/* main.js — 入口：事件绑定、键盘控制、鉴权、启动
    ============================================================ */
 
 import { render, renderBoard } from './render.js';
@@ -9,8 +9,9 @@ import {
   openProjModal, closeProjModal, initProjForm,
   initDeleteProjectBtn,
 } from './dialogs.js';
-import { syncFromBackend } from './api.js';
+import { syncFromBackend, backendFetch, setUnauthorizedHandler } from './api.js';
 import { getActiveProject, setSearchTerm } from './state.js';
+import { getUser, clearAuth, initAuth, showAuth, hideAuth } from './auth.js';
 
 const $ = id => document.getElementById(id);
 
@@ -57,6 +58,31 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+/* —— 鉴权 —— */
+setUnauthorizedHandler(() => {
+  clearAuth();
+  $('currentUser').textContent = '';
+  showAuth('login');
+});
+
+initAuth(() => {
+  // 登录/注册成功
+  hideAuth();
+  syncFromBackend();
+});
+
+async function bootstrap() {
+  const user = getUser();
+  if (!user) { showAuth('login'); return; }
+  $('currentUser').textContent = `👤 ${user.username}`;
+  const me = await backendFetch('/auth/me');
+  if (me) {
+    hideAuth();
+    syncFromBackend();
+  }
+  // me 为 null 时，401 handler 已显示登录页
+}
+
 /* —— 启动 —— */
 render();
-syncFromBackend();
+bootstrap();

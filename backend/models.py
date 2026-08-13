@@ -17,6 +17,15 @@ from sqlalchemy.sql import func
 from database import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = sa.Column(sa.String(32), primary_key=True, index=True)
+    username = sa.Column(sa.String(64), unique=True, nullable=False, index=True)
+    password_hash = sa.Column(sa.String(128), nullable=False)
+    created_at = sa.Column(sa.DateTime, server_default=func.now())
+
+
 class Project(Base):
     __tablename__ = "projects"
 

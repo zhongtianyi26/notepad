@@ -3,16 +3,19 @@
 
 import { state, save, getActiveProject, setActiveProjectId, expandedSet } from './state.js';
 import { render } from './render.js';
+import { API_BASE, TOKEN_KEY } from './config.js';
 
-export const API_BASE = 'http://127.0.0.1:8080/api';
+let onUnauthorized = null;
+export function setUnauthorizedHandler(fn) { onUnauthorized = fn; }
 
-/** 封装 fetch，后端不通时静默返回 null */
+/** 封装 fetch，后端不通时静默返回 null；自动附带 token */
 export async function backendFetch(path, opts = {}) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   try {
-    const res = await fetch(API_BASE + path, {
-      headers: { 'Content-Type': 'application/json' },
-      ...opts,
-    });
+    const res = await fetch(API_BASE + path, { headers, ...opts });
+    if (res.status === 401) { if (onUnauthorized) onUnauthorized(); return null; }
     if (!res.ok) { console.warn('[api]', res.status, path); return null; }
     if (res.status === 204) return true;
     return await res.json();
@@ -62,7 +65,9 @@ export async function syncToBackend(project) {
 
 /** 从后端删除项目 */
 export async function deleteFromBackend(projectId) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
   try {
-    await fetch(`${API_BASE}/projects/${projectId}`, { method: 'DELETE' });
+    await fetch(`${API_BASE}/projects/${projectId}`, { method: 'DELETE', headers });
   } catch (e) { console.warn('[api] delete unreachable:', e.message); }
 }
