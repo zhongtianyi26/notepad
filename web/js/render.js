@@ -4,7 +4,7 @@
 import {
   state, activeProjectId, searchTerm, expandedSet, currentDocProjectId,
   PRIORITY, COLUMN_COLORS,
-  getActiveProject, findColumn, escapeHtml, uid, setActiveProjectId, save,
+  getActiveProject, findColumn, escapeHtml, uid, setActiveProjectId, setCurrentDocProjectId, save,
 } from './state.js';
 import { backendFetch } from './api.js';
 // 循环依赖安全：以下函数仅在事件回调（onclick）中调用，非 import 时执行
@@ -70,8 +70,8 @@ export function renderProjects() {
       if (expandedSet.has(p.id)) expandedSet.delete(p.id); else expandedSet.add(p.id);
       renderProjects();
     };
-    row.querySelector('.pname').onclick = () => selectProject(p.id);
-    row.querySelector('.pcount').onclick = () => selectProject(p.id);
+    // 点击整行任意位置（项目名/计数/空白）都切换项目
+    row.onclick = () => selectProject(p.id);
     li.appendChild(row);
 
     const docUl = document.createElement('ul');
@@ -103,6 +103,7 @@ export function renderProjects() {
 
 export function selectProject(id) {
   setActiveProjectId(id);
+  setCurrentDocProjectId(null);   // 切项目即退出文档编辑态
   expandedSet.add(id);
   showBoard();
   render();
