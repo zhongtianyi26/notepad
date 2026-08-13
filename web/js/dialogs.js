@@ -174,10 +174,14 @@ export async function deleteColumn(colId) {
   const col = findColumn(project, colId);
   if (!col) return;
   const docCount = project.documents.filter(d => d.status === colId).length;
-  const itemCount = col.cards.length + docCount;
-  if (itemCount && !confirm(`该列有 ${itemCount} 个事项（含 ${docCount} 个文档），删除后一并丢失，确定？`)) return;
+  const itemCount = col.cards.length;
+  let tip = '确定删除该列？';
+  if (itemCount) tip = `该列有 ${itemCount} 个任务，删除后一并丢失，确定？`;
+  if (docCount) tip += ` 列内 ${docCount} 个文档将转为「无状态」（仅保留在侧边栏）。`;
+  if ((itemCount || docCount) && !confirm(tip)) return;
   project.columns = project.columns.filter(c => c.id !== colId);
-  project.documents = project.documents.filter(d => d.status !== colId);
+  // 该列文档转为无状态（仅侧边栏），而非删除
+  project.documents.forEach(d => { if (d.status === colId) d.status = ''; });
   await backendFetch(`/columns/${colId}`, { method: 'DELETE' });
   save(); render();
 }
@@ -195,8 +199,8 @@ export function openDocView(docId, projId) {
   if (pid !== activeProjectId) { setActiveProjectId(pid); renderProjects(); }
 
   const fStatus = $('docStatus');
-  fStatus.innerHTML = project.columns
-    .map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  fStatus.innerHTML = `<option value="">无状态（仅侧边栏）</option>` +
+    project.columns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
 
   if (docId) {
     const d = project.documents.find(x => x.id === docId);

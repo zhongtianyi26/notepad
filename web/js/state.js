@@ -37,7 +37,9 @@ export function normalize(s) {
       if (typeof d.title !== 'string' || !d.title) d.title = '未命名文档';
       if (typeof d.intro !== 'string') d.intro = '';
       if (typeof d.content !== 'string') d.content = '';
-      if (!findColumn(p, d.status)) d.status = p.columns[0]?.id || '';
+      // status 为空 → 无状态文档（只在侧边栏，不进看板列）；非空但列已删 → 也视为无状态
+      if (typeof d.status !== 'string') d.status = '';
+      if (d.status && !findColumn(p, d.status)) d.status = '';
       if (typeof d.assignee !== 'string') d.assignee = '';
       if (typeof d.due !== 'string') d.due = '';
       if (typeof d.priority !== 'string') d.priority = 'medium';
