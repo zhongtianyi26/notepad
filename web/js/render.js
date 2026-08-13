@@ -156,9 +156,17 @@ export function renderBoard() {
     colEl.querySelector('[data-act="del-col"]').onclick = () => deleteColumn(col.id);
 
     const body = colEl.querySelector('.col-body');
-    body.addEventListener('dragover', (e) => e.preventDefault());
-    body.addEventListener('drop', (e) => {
+    // 放置判定放宽到整个列（含列头与空白），而非仅卡片区
+    colEl.addEventListener('dragover', (e) => {
       e.preventDefault();
+      colEl.classList.add('drag-over');
+    });
+    colEl.addEventListener('dragleave', (e) => {
+      if (!colEl.contains(e.relatedTarget)) colEl.classList.remove('drag-over');
+    });
+    colEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      colEl.classList.remove('drag-over');
       const cid = e.dataTransfer.getData('text/plain');
       const kind = e.dataTransfer.getData('kind');
       if (kind === 'task') {

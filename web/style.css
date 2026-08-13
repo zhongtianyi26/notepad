@@ -178,7 +178,7 @@ body {
 /* ---------- 看板列 ---------- */
 .board {
   flex: 1; display: flex; gap: 16px; padding: 16px 24px 24px;
-  overflow-x: auto; align-items: flex-start;
+  overflow-x: auto; align-items: stretch;
 }
 .kanban-col {
   background: var(--surface-2);
@@ -207,7 +207,7 @@ body {
 .col-actions .icon-btn { font-size: 15px; color: var(--text-soft); width: 26px; height: 26px; }
 .col-actions .icon-btn:hover { background: rgba(0,0,0,.06); color: var(--text); }
 .col-body {
-  padding: 4px 10px 10px; overflow-y: auto; flex: 1; min-height: 40px;
+  padding: 4px 10px 10px; overflow-y: auto; flex: 1; min-height: 100px;
 }
 .col-add {
   margin: 0 10px 10px; padding: 8px;
