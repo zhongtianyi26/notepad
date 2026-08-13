@@ -1,7 +1,7 @@
 /* main.js — 入口：事件绑定、键盘控制、鉴权、启动
    ============================================================ */
 
-import { render, renderBoard } from './render.js';
+import { render, renderBoard, renderProjects } from './render.js';
 import {
   openCardModal, closeCardModal, initCardForm,
   openColModal, closeColModal, initColForm,
@@ -9,8 +9,8 @@ import {
   openProjModal, closeProjModal, initProjForm,
   initDeleteProjectBtn,
 } from './dialogs.js';
-import { syncFromBackend, backendFetch, setUnauthorizedHandler } from './api.js';
-import { getActiveProject, setSearchTerm } from './state.js';
+import { syncFromBackend, backendFetch, setUnauthorizedHandler, setConflictHandler, fetchProject } from './api.js';
+import { getActiveProject, setSearchTerm, state, normalize } from './state.js';
 import { getUser, clearAuth, initAuth, showAuth, hideAuth } from './auth.js';
 
 const $ = id => document.getElementById(id);
@@ -65,10 +65,25 @@ setUnauthorizedHandler(() => {
   showAuth('login');
 });
 
+// 乐观锁冲突：提示并刷新当前项目数据
+setConflictHandler(async (detail) => {
+  alert(detail || '数据已被他人修改，已刷新为最新内容');
+  const p = getActiveProject();
+  if (p) {
+    const fresh = await fetchProject(p.id);
+    if (fresh && fresh.columns) {
+      const idx = state.projects.findIndex(x => x.id === p.id);
+      if (idx >= 0) state.projects[idx] = normalize({ projects: [fresh] }).projects[0];
+      renderBoard();
+    }
+  }
+});
+
 initAuth(() => {
   // 登录/注册成功
   hideAuth();
   syncFromBackend();
+  startPolling();
 });
 
 async function bootstrap() {
@@ -79,8 +94,43 @@ async function bootstrap() {
   if (me) {
     hideAuth();
     syncFromBackend();
+    startPolling();
   }
   // me 为 null 时，401 handler 已显示登录页
+}
+
+/* —— 轮询同步：定期拉取当前项目，让多用户互相看到对方改动 —— */
+let pollTimer = null;
+
+async function pollProject() {
+  // 1. 同步项目列表：把后端有、本地没有的新项目补进来
+  const list = await backendFetch('/projects');
+  if (list && list.length) {
+    for (const item of list) {
+      if (!state.projects.find(lp => lp.id === item.id)) {
+        const full = await fetchProject(item.id);
+        if (full && full.columns) {
+          state.projects.push(normalize({ projects: [full] }).projects[0]);
+        }
+      }
+    }
+  }
+  // 2. 拉当前项目详情，更新数据
+  const p = getActiveProject();
+  if (p) {
+    const fresh = await fetchProject(p.id);
+    if (fresh && fresh.columns) {
+      const idx = state.projects.findIndex(x => x.id === p.id);
+      if (idx >= 0) state.projects[idx] = normalize({ projects: [fresh] }).projects[0];
+    }
+  }
+  renderBoard();
+  renderProjects();
+}
+
+function startPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(pollProject, 3000);
 }
 
 /* —— 启动 —— */

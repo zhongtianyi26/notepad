@@ -31,6 +31,7 @@ class Project(Base):
 
     id = sa.Column(sa.String(32), primary_key=True, index=True)
     name = sa.Column(sa.String(128), nullable=False)
+    version = sa.Column(sa.Integer, nullable=False, default=0)   # 乐观锁版本号
     created_at = sa.Column(sa.DateTime, server_default=func.now())
     updated_at = sa.Column(sa.DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -49,6 +50,7 @@ class Column(Base):
                            nullable=False, index=True)
     name = sa.Column(sa.String(64), nullable=False)
     position = sa.Column(sa.Integer, nullable=False, default=0)
+    version = sa.Column(sa.Integer, nullable=False, default=0)   # 乐观锁版本号
 
     project = relationship("Project", back_populates="columns")
     cards = relationship("Card", back_populates="column",
@@ -68,6 +70,7 @@ class Card(Base):
     due = sa.Column(sa.String(10), default="")       # ISO 日期 "YYYY-MM-DD"
     priority = sa.Column(sa.String(10), default="medium")  # high / medium / low
     tags = sa.Column(sa.Text, default="[]")          # JSON 数组字符串
+    version = sa.Column(sa.Integer, nullable=False, default=0)   # 乐观锁版本号
     created_at = sa.Column(sa.DateTime, server_default=func.now())
     updated_at = sa.Column(sa.DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -88,6 +91,7 @@ class Document(Base):
     due = sa.Column(sa.String(10), default="")       # ISO 日期 "YYYY-MM-DD"
     priority = sa.Column(sa.String(10), default="medium")  # high / medium / low
     tags = sa.Column(sa.Text, default="[]")           # JSON 数组字符串
+    version = sa.Column(sa.Integer, nullable=False, default=0)   # 乐观锁版本号
     created_at = sa.Column(sa.DateTime, server_default=func.now())
     updated_at = sa.Column(sa.DateTime, server_default=func.now(), onupdate=func.now())
 

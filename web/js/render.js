@@ -164,7 +164,7 @@ export function renderBoard() {
     colEl.addEventListener('dragleave', (e) => {
       if (!colEl.contains(e.relatedTarget)) colEl.classList.remove('drag-over');
     });
-    colEl.addEventListener('drop', (e) => {
+    colEl.addEventListener('drop', async (e) => {
       e.preventDefault();
       colEl.classList.remove('drag-over');
       const cid = e.dataTransfer.getData('text/plain');
@@ -176,15 +176,15 @@ export function renderBoard() {
         if (card && srcCol.id !== col.id) {
           srcCol.cards = srcCol.cards.filter(c => c.id !== cid);
           col.cards.push(card);
-          // 后端：更新卡片所在列
-          backendFetch(`/cards/${cid}`, { method: 'PUT', body: JSON.stringify({ column_id: col.id }) });
+          // 后端：更新卡片所在列（带乐观锁版本号）
+          await backendFetch(`/cards/${cid}`, { method: 'PUT', body: JSON.stringify({ column_id: col.id, version: card.version }) });
           save(); renderBoard();
         }
       } else if (kind === 'doc') {
         const doc = project.documents.find(d => d.id === cid);
         if (doc && doc.status !== col.id) {
           doc.status = col.id;
-          backendFetch(`/documents/${cid}`, { method: 'PUT', body: JSON.stringify({ status: col.id }) });
+          await backendFetch(`/documents/${cid}`, { method: 'PUT', body: JSON.stringify({ status: col.id, version: doc.version }) });
           save(); renderBoard();
         }
       }

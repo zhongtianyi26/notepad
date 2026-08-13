@@ -1,8 +1,6 @@
 /* state.js — 数据层：常量、状态、存取工具、基础函数
    ============================================================ */
 
-export const STORAGE_KEY = 'kanban.v2';
-
 export const PRIORITY = {
   high:   { label: '高', cls: 'high' },
   medium: { label: '中', cls: 'medium' },
@@ -12,13 +10,13 @@ export const PRIORITY = {
 export const COLUMN_COLORS = ['#4c6ef5', '#f08c00', '#7048e8', '#2f9e44', '#e8590c', '#1098ad'];
 
 // —— 状态 ——
-export let state = load();
+// 后端是唯一数据源，启动时空状态，由 syncFromBackend 拉取填充
+export let state = { projects: [] };
 export let activeProjectId = state.projects[0]?.id || null;
 export let searchTerm = '';
 // 侧边栏展开状态
 export const expandedSet = new Set();
 export let currentDocProjectId = null;
-if (activeProjectId) expandedSet.add(activeProjectId);
 
 
 // —— 工具 ——
@@ -28,14 +26,7 @@ export function uid() {
 
 export function emptyState() { return { projects: [] }; }
 
-export function load() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return normalize(JSON.parse(raw));
-  } catch (e) { console.warn('读取本地数据失败', e); }
-  return emptyState();
-}
-
+/** 规范化后端拉取的数据：补默认值、把 tags 字符串转数组 */
 export function normalize(s) {
   if (!s || !Array.isArray(s.projects)) return emptyState();
   s.projects.forEach(p => {
@@ -54,14 +45,18 @@ export function normalize(s) {
         try { d.tags = JSON.parse(d.tags || '[]'); } catch (_) { d.tags = []; }
       }
     });
+    // 卡片 tags 同理
+    p.columns.forEach(c => c.cards.forEach(card => {
+      if (!Array.isArray(card.tags)) {
+        try { card.tags = JSON.parse(card.tags || '[]'); } catch (_) { card.tags = []; }
+      }
+    }));
   });
   return s;
 }
 
-export function save() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-  catch (e) { console.warn('保存失败', e); }
-}
+/** 已废弃：后端是唯一数据源，无需本地持久化。保留空实现兼容旧调用点。 */
+export function save() {}
 
 export function getActiveProject() {
   return state.projects.find(p => p.id === activeProjectId) || state.projects[0];

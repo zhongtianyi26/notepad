@@ -1,12 +1,15 @@
 """SQLAlchemy 引擎与会话工厂。
 
-使用项目根目录下的 `notepad.db` 作为 SQLite 数据库文件。
+默认使用 `notepad.db` 作为 SQLite 数据库文件，可用环境变量
+`NOTEPAD_DB` 覆盖（如 `NOTEPAD_DB=sqlite:///test.db`）。
 """
+
+import os
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = "sqlite:///notepad.db"
+DATABASE_URL = os.environ.get("NOTEPAD_DB", "sqlite:///notepad.db")
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 

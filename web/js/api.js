@@ -1,12 +1,15 @@
 /* api.js — 后端同步层
    ============================================================ */
 
-import { state, save, getActiveProject, setActiveProjectId, expandedSet } from './state.js';
+import { state, save, getActiveProject, setActiveProjectId, expandedSet, normalize } from './state.js';
 import { render } from './render.js';
 import { API_BASE, TOKEN_KEY } from './config.js';
 
 let onUnauthorized = null;
 export function setUnauthorizedHandler(fn) { onUnauthorized = fn; }
+
+let onConflict = null;
+export function setConflictHandler(fn) { onConflict = fn; }
 
 /** 封装 fetch，后端不通时静默返回 null；自动附带 token */
 export async function backendFetch(path, opts = {}) {
@@ -16,34 +19,38 @@ export async function backendFetch(path, opts = {}) {
   try {
     const res = await fetch(API_BASE + path, { headers, ...opts });
     if (res.status === 401) { if (onUnauthorized) onUnauthorized(); return null; }
+    if (res.status === 409) {
+      const data = await res.json().catch(() => null);
+      if (onConflict) onConflict(data?.detail || '数据已被修改');
+      return null;
+    }
     if (!res.ok) { console.warn('[api]', res.status, path); return null; }
     if (res.status === 204) return true;
     return await res.json();
   } catch (e) { console.warn('[api] unreachable:', e.message); return null; }
 }
 
-/** 启动时从后端拉取项目列表 */
+/** 拉取完整项目数据（列/卡片/文档），用于轮询同步 */
+export async function fetchProject(projectId) {
+  return backendFetch(`/projects/${projectId}`);
+}
+
+/** 启动时从后端全量拉取项目数据（后端是唯一数据源） */
 export async function syncFromBackend() {
   const projects = await backendFetch('/projects');
-  if (!projects || !projects.length) return;
-  if (state.projects.length) {
-    for (const p of projects) {
-      if (!state.projects.find(lp => lp.id === p.id)) {
-        const full = await backendFetch(`/projects/${p.id}`);
-        if (full && full.columns) state.projects.push(full);
-      }
-    }
-  } else {
-    for (const p of projects) {
-      const full = await backendFetch(`/projects/${p.id}`);
-      if (full) state.projects.push(full);
-    }
-    if (state.projects.length) {
-      setActiveProjectId(state.projects[0].id);
-      expandedSet.add(state.projects[0].id);
-    }
+  if (!projects) return;
+  const fulls = [];
+  for (const p of projects) {
+    const full = await backendFetch(`/projects/${p.id}`);
+    if (full && full.columns) fulls.push(full);
   }
-  save(); render();
+  const normalized = normalize({ projects: fulls });
+  state.projects = normalized.projects;
+  if (state.projects.length) {
+    setActiveProjectId(state.projects[0].id);
+    expandedSet.add(state.projects[0].id);
+  }
+  render();
 }
 
 /** 将指定项目的完整 state 推送到后端 */

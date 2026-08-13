@@ -51,10 +51,12 @@ class CardUpdate(BaseModel):
     priority: Optional[str] = None
     tags: Optional[str] = None
     column_id: Optional[str] = None  # 拖动到别的列时更新
+    version: Optional[int] = None    # 乐观锁版本号（前端读到的最新版本）
 
 class CardOut(CardBase):
     id: str
     column_id: str
+    version: int = 0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -73,12 +75,14 @@ class ColumnCreate(ColumnBase):
 class ColumnUpdate(BaseModel):
     name: Optional[str] = None
     position: Optional[int] = None
+    version: Optional[int] = None
 
 class ColumnOut(BaseModel):
     id: str
     project_id: str
     name: str
     position: int = 0
+    version: int = 0
     cards: list[CardOut] = []
 
     model_config = {"from_attributes": True}
@@ -108,10 +112,12 @@ class DocumentUpdate(BaseModel):
     due: Optional[str] = None
     priority: Optional[str] = None
     tags: Optional[str] = None
+    version: Optional[int] = None
 
 class DocumentOut(DocumentBase):
     id: str
     project_id: str
+    version: int = 0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -130,11 +136,13 @@ class ProjectCreate(ProjectBase):
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
+    version: Optional[int] = None
 
 class ProjectSummary(BaseModel):
     """项目列表摘要（不含嵌套）"""
     id: str
     name: str
+    version: int = 0
     column_count: int = 0
     card_count: int = 0
     document_count: int = 0
@@ -146,6 +154,7 @@ class ProjectSummary(BaseModel):
 class ProjectOut(ProjectBase):
     """完整项目（含列、卡片、文档）"""
     id: str
+    version: int = 0
     columns: list[ColumnOut] = []
     documents: list[DocumentOut] = []
     created_at: Optional[datetime] = None

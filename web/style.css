@@ -151,6 +151,21 @@ body {
   transition: background .15s, color .15s;
 }
 .btn-danger-ghost:hover { background: var(--danger); color: #fff; }
+.btn-warning {
+  background: #fff3e0; color: #b45309; border: 1px solid #f5a623;
+  padding: 9px 14px; border-radius: 8px; font-size: 14px; cursor: pointer;
+  font-weight: 600; white-space: nowrap;
+}
+.btn-warning:hover { background: #ffe6c7; }
+
+/* 锁状态横幅 */
+.lock-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 0 24px 8px; padding: 10px 16px;
+  background: #fff8e6; border: 1px solid #f0c66a; border-radius: 10px;
+  font-size: 13px; color: #8a6116;
+}
+.lock-banner.hidden { display: none; }
 
 .icon-btn {
   background: transparent; border: none; color: inherit;

@@ -58,7 +58,7 @@ export function initCardForm() {
     $('cardColumn').value = $('fColumn').value;
   });
 
-  $('cardForm').addEventListener('submit', (e) => {
+  $('cardForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const project = getActiveProject();
     if (!project) return;
@@ -83,16 +83,16 @@ export function initCardForm() {
         found.column.cards = found.column.cards.filter(c => c.id !== cardId);
         targetCol.cards.push(found.card);
       }
-      backendFetch(`/cards/${cardId}`, { method: 'PUT', body: JSON.stringify({ ...data, column_id: targetCol.id, tags: JSON.stringify(data.tags) }) });
+      await backendFetch(`/cards/${cardId}`, { method: 'PUT', body: JSON.stringify({ ...data, column_id: targetCol.id, tags: JSON.stringify(data.tags), version: found.card.version }) });
     } else {
       const id = uid();
       targetCol.cards.push({ id, ...data, column_id: targetCol.id });
-      backendFetch(`/columns/${targetCol.id}/cards`, { method: 'POST', body: JSON.stringify({ id, ...data, tags: JSON.stringify(data.tags) }) });
+      await backendFetch(`/columns/${targetCol.id}/cards`, { method: 'POST', body: JSON.stringify({ id, ...data, tags: JSON.stringify(data.tags) }) });
     }
     save(); closeCardModal(); renderBoard();
   });
 
-  $('deleteCardBtn').onclick = () => {
+  $('deleteCardBtn').onclick = async () => {
     const project = getActiveProject();
     const cardId = $('cardId').value;
     if (!project || !cardId) return;
@@ -100,7 +100,7 @@ export function initCardForm() {
     if (!found) return;
     if (confirm('确定删除该任务？')) {
       found.column.cards = found.column.cards.filter(c => c.id !== cardId);
-      backendFetch(`/cards/${cardId}`, { method: 'DELETE' });
+      await backendFetch(`/cards/${cardId}`, { method: 'DELETE' });
       save(); closeCardModal(); renderBoard();
     }
   };
@@ -132,19 +132,20 @@ export function openColModal(colId) {
 export function closeColModal() { $('colModal').classList.add('hidden'); }
 
 export function initColForm() {
-  $('colForm').addEventListener('submit', (e) => {
+  $('colForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const project = getActiveProject();
     if (!project) return;
     const colId = $('colId').value;
     const name = $('colName').value.trim();
     if (colId) {
-      findColumn(project, colId).name = name;
-      backendFetch(`/columns/${colId}`, { method: 'PUT', body: JSON.stringify({ name }) });
+      const col = findColumn(project, colId);
+      col.name = name;
+      await backendFetch(`/columns/${colId}`, { method: 'PUT', body: JSON.stringify({ name, version: col.version }) });
     } else {
       const id = uid();
       project.columns.push({ id, name, cards: [] });
-      backendFetch(`/projects/${project.id}/columns`, { method: 'POST', body: JSON.stringify({ id, name, position: project.columns.length - 1 }) });
+      await backendFetch(`/projects/${project.id}/columns`, { method: 'POST', body: JSON.stringify({ id, name, position: project.columns.length - 1 }) });
     }
     save(); closeColModal(); renderBoard();
   });
@@ -160,7 +161,7 @@ export function initColForm() {
 /* ============================================================
  *  删除列
  * ============================================================ */
-export function deleteColumn(colId) {
+export async function deleteColumn(colId) {
   const project = getActiveProject();
   if (project.columns.length <= 1) { alert('至少保留一列'); return; }
   const col = findColumn(project, colId);
@@ -170,7 +171,7 @@ export function deleteColumn(colId) {
   if (itemCount && !confirm(`该列有 ${itemCount} 个事项（含 ${docCount} 个文档），删除后一并丢失，确定？`)) return;
   project.columns = project.columns.filter(c => c.id !== colId);
   project.documents = project.documents.filter(d => d.status !== colId);
-  backendFetch(`/columns/${colId}`, { method: 'DELETE' });
+  await backendFetch(`/columns/${colId}`, { method: 'DELETE' });
   save(); render();
 }
 
@@ -225,7 +226,7 @@ export function closeDocView() {
   render();
 }
 
-function saveDoc() {
+async function saveDoc() {
   const project = state.projects.find(p => p.id === currentDocProjectId);
   if (!project) return;
   const id = $('docId').value;
@@ -242,11 +243,11 @@ function saveDoc() {
   if (id) {
     const d = project.documents.find(x => x.id === id);
     Object.assign(d, data);
-    backendFetch(`/documents/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, tags: JSON.stringify(data.tags) }) });
+    await backendFetch(`/documents/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, tags: JSON.stringify(data.tags), version: d.version }) });
   } else {
     const newId = uid();
     project.documents.push({ id: newId, ...data });
-    backendFetch(`/projects/${project.id}/documents`, { method: 'POST', body: JSON.stringify({ id: newId, ...data, tags: JSON.stringify(data.tags) }) });
+    await backendFetch(`/projects/${project.id}/documents`, { method: 'POST', body: JSON.stringify({ id: newId, ...data, tags: JSON.stringify(data.tags) }) });
   }
   save();
   closeDocView();
@@ -262,13 +263,13 @@ export function initDocForm() {
     if (dirty && !confirm('放弃未保存的更改？')) return;
     closeDocView();
   };
-  $('docDeleteBtn').onclick = () => {
+  $('docDeleteBtn').onclick = async () => {
     const project = state.projects.find(p => p.id === currentDocProjectId);
     if (!project) return;
     const id = $('docId').value;
     if (!confirm('确定删除该文档？')) return;
     project.documents = project.documents.filter(d => d.id !== id);
-    backendFetch(`/documents/${id}`, { method: 'DELETE' });
+    await backendFetch(`/documents/${id}`, { method: 'DELETE' });
     save(); closeDocView();
   };
 }
@@ -295,13 +296,14 @@ export function openProjModal(projId) {
 export function closeProjModal() { $('projModal').classList.add('hidden'); }
 
 export function initProjForm() {
-  $('projForm').addEventListener('submit', (e) => {
+  $('projForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = $('projId').value;
     const name = $('projName').value.trim();
     if (id) {
-      state.projects.find(x => x.id === id).name = name;
-      backendFetch(`/projects/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+      const p = state.projects.find(x => x.id === id);
+      p.name = name;
+      await backendFetch(`/projects/${id}`, { method: 'PUT', body: JSON.stringify({ name, version: p.version }) });
     } else {
       const pid = uid();
       const cols = [
@@ -313,7 +315,7 @@ export function initProjForm() {
       state.projects.push(p);
       setActiveProjectId(pid);
       expandedSet.add(pid);
-      backendFetch('/projects', {
+      await backendFetch('/projects', {
         method: 'POST',
         body: JSON.stringify({ id: pid, name, columns: cols, documents: [] }),
       });
@@ -327,7 +329,7 @@ export function initProjForm() {
  *  删除项目（顶栏按钮）
  * ============================================================ */
 export function initDeleteProjectBtn() {
-  $('deleteProjectBtn').onclick = () => {
+  $('deleteProjectBtn').onclick = async () => {
     const project = getActiveProject();
     if (!project) return;
     if (!confirm(`确定删除项目「${project.name}」及其所有任务与文档？此操作不可恢复。`)) return;
@@ -340,6 +342,6 @@ export function initDeleteProjectBtn() {
       expandedSet.add(state.projects[0].id);
     }
     save(); render();
-    deleteFromBackend(delId);
+    await deleteFromBackend(delId);
   };
 }

@@ -1,9 +1,10 @@
 """REST API 路由 — 项目/列/卡片/文档 的 CRUD + 全量同步。
 
-所有端点返回 JSON，与前端 state 结构一致。
+写操作采用乐观锁：请求携带 version，后端比对，不匹配返回 409。
 """
 
-import json
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
@@ -35,17 +36,24 @@ def _get_column_or_404(db: Session, column_id: str) -> Column:
         raise HTTPException(status_code=404, detail="列不存在")
     return c
 
+def _check_version(obj, expected_version: Optional[int]):
+    """乐观锁校验：版本号不匹配则冲突。expected_version 为 None 时跳过。"""
+    if expected_version is not None and obj.version != expected_version:
+        raise HTTPException(status_code=409, detail="数据已被他人修改，请刷新后重试")
+
 def _build_project_out(p: Project) -> dict:
     """将 ORM Project 转为嵌套字典（含 columns → cards 和 documents）。"""
     return {
         "id": p.id,
         "name": p.name,
+        "version": p.version,
         "columns": [
             {
                 "id": c.id,
                 "project_id": c.project_id,
                 "name": c.name,
                 "position": c.position,
+                "version": c.version,
                 "cards": [
                     CardOut.model_validate(card).model_dump()
                     for card in c.cards
@@ -74,6 +82,7 @@ def list_projects(db: Session = Depends(get_db)):
         result.append({
             "id": p.id,
             "name": p.name,
+            "version": p.version,
             "column_count": col_count,
             "card_count": card_count,
             "document_count": doc_count,
@@ -139,8 +148,10 @@ def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
 @router.put("/projects/{project_id}", response_model=ProjectOut)
 def update_project(project_id: str, body: ProjectUpdate, db: Session = Depends(get_db)):
     p = _get_project_or_404(db, project_id)
+    _check_version(p, body.version)
     if body.name is not None:
         p.name = body.name
+    p.version += 1
     db.commit()
     db.refresh(p)
     return _build_project_out(p)
@@ -175,10 +186,12 @@ def add_column(project_id: str, body: ColumnCreate, db: Session = Depends(get_db
 @router.put("/columns/{column_id}", response_model=ColumnOut)
 def update_column(column_id: str, body: ColumnUpdate, db: Session = Depends(get_db)):
     col = _get_column_or_404(db, column_id)
+    _check_version(col, body.version)
     if body.name is not None:
         col.name = body.name
     if body.position is not None:
         col.position = body.position
+    col.version += 1
     db.commit()
     db.refresh(col)
     return ColumnOut.model_validate(col)
@@ -221,12 +234,14 @@ def update_card(card_id: str, body: CardUpdate, db: Session = Depends(get_db)):
     card = db.query(Card).filter(Card.id == card_id).first()
     if not card:
         raise HTTPException(status_code=404, detail="卡片不存在")
+    _check_version(card, body.version)
     for field in ("title", "desc", "assignee", "due", "priority", "tags", "column_id"):
         val = getattr(body, field, None)
         if val is not None:
             setattr(card, field, val)
     if body.column_id and body.column_id != card.column_id:
         _get_column_or_404(db, body.column_id)   # 确保目标列存在
+    card.version += 1
     db.commit()
     db.refresh(card)
     return CardOut.model_validate(card)
@@ -271,10 +286,12 @@ def update_document(doc_id: str, body: DocumentUpdate, db: Session = Depends(get
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
-    for field in ("title", "intro", "content", "status"):
+    _check_version(doc, body.version)
+    for field in ("title", "intro", "content", "status", "assignee", "due", "priority", "tags"):
         val = getattr(body, field, None)
         if val is not None:
             setattr(doc, field, val)
+    doc.version += 1
     db.commit()
     db.refresh(doc)
     return DocumentOut.model_validate(doc)
@@ -297,15 +314,15 @@ def delete_document(doc_id: str, db: Session = Depends(get_db)):
 def sync_project(project_id: str, body: ProjectSync, db: Session = Depends(get_db)):
     """将前端整个项目 state 同步到后端。
     先清空项目下所有列/卡片/文档，再用新数据重建。
-    适用于 localStorage → 数据库 的迁移和全量保存场景。
+    适用于迁移和全量保存场景。
     """
     p = db.query(Project).filter(Project.id == project_id).first()
     if not p:
-        # 项目不存在则新建
         p = Project(id=project_id, name=body.name)
         db.add(p)
     else:
         p.name = body.name
+        p.version += 1
 
     # 清空旧数据
     db.query(Card).filter(Card.column.has(project_id=project_id)).delete(synchronize_session=False)
@@ -320,7 +337,7 @@ def sync_project(project_id: str, body: ProjectSync, db: Session = Depends(get_d
             name=col_data.name,
             position=col_data.position,
         ))
-    db.flush()  # 确保列已入库，card 可以引用
+    db.flush()
 
     # 重建卡片
     for col_id, cards in body.cards.items():
