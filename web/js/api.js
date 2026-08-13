@@ -30,9 +30,19 @@ export async function backendFetch(path, opts = {}) {
   } catch (e) { console.warn('[api] unreachable:', e.message); return null; }
 }
 
-/** 拉取完整项目数据（列/卡片/文档），用于轮询同步 */
+/** 拉取完整项目数据（列/卡片/文档），用于同步 */
 export async function fetchProject(projectId) {
   return backendFetch(`/projects/${projectId}`);
+}
+
+/** 建立 SSE 连接订阅全局变更事件，返回 EventSource（由调用方关闭）。
+ *  收到 `update` 事件或连接建立/重连成功时回调 onUpdate。
+ */
+export function connectProjectEvents(onUpdate) {
+  const es = new EventSource(`${API_BASE}/events`);
+  es.addEventListener('update', onUpdate);
+  es.onopen = onUpdate;
+  return es;
 }
 
 /** 启动时从后端全量拉取项目数据（后端是唯一数据源） */

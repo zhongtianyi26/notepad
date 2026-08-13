@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
 from models import Project, Column, Card, Document
+from sse import broadcast
 from schemas import (
     ProjectCreate, ProjectUpdate, ProjectOut, ProjectSummary, ProjectSync,
     ColumnCreate, ColumnUpdate, ColumnOut,
@@ -142,6 +143,7 @@ def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
 
     db.commit()
     db.refresh(project)
+    broadcast(body.id)
     return _build_project_out(project)
 
 
@@ -154,6 +156,7 @@ def update_project(project_id: str, body: ProjectUpdate, db: Session = Depends(g
     p.version += 1
     db.commit()
     db.refresh(p)
+    broadcast(project_id)
     return _build_project_out(p)
 
 
@@ -162,6 +165,7 @@ def delete_project(project_id: str, db: Session = Depends(get_db)):
     p = _get_project_or_404(db, project_id)
     db.delete(p)
     db.commit()
+    broadcast(project_id)
 
 
 # ═══════════════════════════════════════════
@@ -180,6 +184,7 @@ def add_column(project_id: str, body: ColumnCreate, db: Session = Depends(get_db
     db.add(col)
     db.commit()
     db.refresh(col)
+    broadcast(project_id)
     return ColumnOut.model_validate(col)
 
 
@@ -194,6 +199,7 @@ def update_column(column_id: str, body: ColumnUpdate, db: Session = Depends(get_
     col.version += 1
     db.commit()
     db.refresh(col)
+    broadcast(col.project_id)
     return ColumnOut.model_validate(col)
 
 
@@ -204,6 +210,7 @@ def delete_column(column_id: str, db: Session = Depends(get_db)):
     db.query(Document).filter(Document.status == column_id).update({"status": ""})
     db.delete(col)
     db.commit()
+    broadcast(col.project_id)
 
 
 # ═══════════════════════════════════════════
@@ -212,7 +219,7 @@ def delete_column(column_id: str, db: Session = Depends(get_db)):
 
 @router.post("/columns/{column_id}/cards", response_model=CardOut, status_code=201)
 def add_card(column_id: str, body: CardCreate, db: Session = Depends(get_db)):
-    _get_column_or_404(db, column_id)
+    col = _get_column_or_404(db, column_id)
     card = Card(
         id=body.id,
         column_id=column_id,
@@ -226,6 +233,7 @@ def add_card(column_id: str, body: CardCreate, db: Session = Depends(get_db)):
     db.add(card)
     db.commit()
     db.refresh(card)
+    broadcast(col.project_id)
     return CardOut.model_validate(card)
 
 
@@ -244,6 +252,7 @@ def update_card(card_id: str, body: CardUpdate, db: Session = Depends(get_db)):
     card.version += 1
     db.commit()
     db.refresh(card)
+    broadcast(card.column.project_id)
     return CardOut.model_validate(card)
 
 
@@ -252,8 +261,10 @@ def delete_card(card_id: str, db: Session = Depends(get_db)):
     card = db.query(Card).filter(Card.id == card_id).first()
     if not card:
         raise HTTPException(status_code=404, detail="卡片不存在")
+    pid = card.column.project_id
     db.delete(card)
     db.commit()
+    broadcast(pid)
 
 
 # ═══════════════════════════════════════════
@@ -278,6 +289,7 @@ def add_document(project_id: str, body: DocumentCreate, db: Session = Depends(ge
     db.add(doc)
     db.commit()
     db.refresh(doc)
+    broadcast(project_id)
     return DocumentOut.model_validate(doc)
 
 
@@ -294,6 +306,7 @@ def update_document(doc_id: str, body: DocumentUpdate, db: Session = Depends(get
     doc.version += 1
     db.commit()
     db.refresh(doc)
+    broadcast(doc.project_id)
     return DocumentOut.model_validate(doc)
 
 
@@ -302,8 +315,10 @@ def delete_document(doc_id: str, db: Session = Depends(get_db)):
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
+    pid = doc.project_id
     db.delete(doc)
     db.commit()
+    broadcast(pid)
 
 
 # ═══════════════════════════════════════════
@@ -370,4 +385,5 @@ def sync_project(project_id: str, body: ProjectSync, db: Session = Depends(get_d
 
     db.commit()
     db.refresh(p)
+    broadcast(project_id)
     return _build_project_out(p)

@@ -177,14 +177,16 @@ export function renderBoard() {
           srcCol.cards = srcCol.cards.filter(c => c.id !== cid);
           col.cards.push(card);
           // 后端：更新卡片所在列（带乐观锁版本号）
-          await backendFetch(`/cards/${cid}`, { method: 'PUT', body: JSON.stringify({ column_id: col.id, version: card.version }) });
+          const updated = await backendFetch(`/cards/${cid}`, { method: 'PUT', body: JSON.stringify({ column_id: col.id, version: card.version }) });
+          if (updated) card.version = updated.version;
           save(); renderBoard();
         }
       } else if (kind === 'doc') {
         const doc = project.documents.find(d => d.id === cid);
         if (doc && doc.status !== col.id) {
           doc.status = col.id;
-          await backendFetch(`/documents/${cid}`, { method: 'PUT', body: JSON.stringify({ status: col.id, version: doc.version }) });
+          const updated = await backendFetch(`/documents/${cid}`, { method: 'PUT', body: JSON.stringify({ status: col.id, version: doc.version }) });
+          if (updated) doc.version = updated.version;
           save(); renderBoard();
         }
       }

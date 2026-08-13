@@ -12,6 +12,9 @@ import { render, renderProjects, renderBoard, showBoard, showDocView } from './r
 // —— 获取器 ——
 const $ = id => document.getElementById(id);
 
+// 打开编辑界面时的 version 快照（乐观锁：保存时带快照版本，编辑期间他人改动才会触发 409）
+let _cardVersion = 0, _colVersion = 0, _docVersion = 0, _projVersion = 0;
+
 
 /* ============================================================
  *  任务卡片弹窗
@@ -26,6 +29,7 @@ export function openCardModal(cardId, colId) {
   if (cardId) {
     const found = findCard(project, cardId);
     if (!found) return;
+    _cardVersion = found.card.version;
     $('modalTitle').textContent = '编辑任务';
     $('cardId').value = found.card.id;
     $('cardColumn').value = found.column.id;
@@ -83,7 +87,8 @@ export function initCardForm() {
         found.column.cards = found.column.cards.filter(c => c.id !== cardId);
         targetCol.cards.push(found.card);
       }
-      await backendFetch(`/cards/${cardId}`, { method: 'PUT', body: JSON.stringify({ ...data, column_id: targetCol.id, tags: JSON.stringify(data.tags), version: found.card.version }) });
+      const updated = await backendFetch(`/cards/${cardId}`, { method: 'PUT', body: JSON.stringify({ ...data, column_id: targetCol.id, tags: JSON.stringify(data.tags), version: _cardVersion }) });
+      if (updated) found.card.version = updated.version;
     } else {
       const id = uid();
       targetCol.cards.push({ id, ...data, column_id: targetCol.id });
@@ -115,6 +120,7 @@ export function openColModal(colId) {
   if (!project) { openProjModal(null); return; }
   if (colId) {
     const c = findColumn(project, colId);
+    _colVersion = c.version;
     $('colModalTitle').textContent = '编辑列';
     $('colId').value = c.id;
     $('colName').value = c.name;
@@ -141,7 +147,8 @@ export function initColForm() {
     if (colId) {
       const col = findColumn(project, colId);
       col.name = name;
-      await backendFetch(`/columns/${colId}`, { method: 'PUT', body: JSON.stringify({ name, version: col.version }) });
+      const updated = await backendFetch(`/columns/${colId}`, { method: 'PUT', body: JSON.stringify({ name, version: _colVersion }) });
+      if (updated) col.version = updated.version;
     } else {
       const id = uid();
       project.columns.push({ id, name, cards: [] });
@@ -193,6 +200,7 @@ export function openDocView(docId, projId) {
 
   if (docId) {
     const d = project.documents.find(x => x.id === docId);
+    _docVersion = d.version;
     $('docId').value = d.id;
     $('docTitle').value = d.title;
     $('docIntro').value = d.intro || '';
@@ -243,7 +251,8 @@ async function saveDoc() {
   if (id) {
     const d = project.documents.find(x => x.id === id);
     Object.assign(d, data);
-    await backendFetch(`/documents/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, tags: JSON.stringify(data.tags), version: d.version }) });
+    const updated = await backendFetch(`/documents/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, tags: JSON.stringify(data.tags), version: _docVersion }) });
+    if (updated) d.version = updated.version;
   } else {
     const newId = uid();
     project.documents.push({ id: newId, ...data });
@@ -281,6 +290,7 @@ export function initDocForm() {
 export function openProjModal(projId) {
   if (projId) {
     const p = state.projects.find(x => x.id === projId);
+    _projVersion = p.version;
     $('projModalTitle').textContent = '编辑项目';
     $('projId').value = p.id;
     $('projName').value = p.name;
@@ -303,7 +313,8 @@ export function initProjForm() {
     if (id) {
       const p = state.projects.find(x => x.id === id);
       p.name = name;
-      await backendFetch(`/projects/${id}`, { method: 'PUT', body: JSON.stringify({ name, version: p.version }) });
+      const updated = await backendFetch(`/projects/${id}`, { method: 'PUT', body: JSON.stringify({ name, version: _projVersion }) });
+      if (updated) p.version = updated.version;
     } else {
       const pid = uid();
       const cols = [
