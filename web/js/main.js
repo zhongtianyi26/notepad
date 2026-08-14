@@ -1,9 +1,9 @@
 /* main.js — 入口：事件绑定、键盘控制、鉴权、启动
    ============================================================ */
 
-import { render, renderBoard, renderProjects } from './render.js';
+import { render, renderBoard, renderProjects, showBoard } from './render.js';
 import {
-  openCardModal, closeCardModal, initCardForm,
+  openCardModal, closeCardModal, initCardForm, openCardModalFromText,
   openColModal, closeColModal, initColForm,
   openDocView, closeDocView, initDocForm,
   openProjModal, closeProjModal, initProjForm,
@@ -12,8 +12,20 @@ import {
 import { syncFromBackend, backendFetch, setUnauthorizedHandler, setConflictHandler, fetchProject, connectProjectEvents } from './api.js';
 import { getActiveProject, setSearchTerm, state, normalize } from './state.js';
 import { getUser, clearAuth, initAuth, showAuth, hideAuth } from './auth.js';
+import { setTaskLinkClickHandler, setSelectionCreateHandler } from './editor.js';
 
 const $ = id => document.getElementById(id);
+
+/* —— 任务链接跳转：点击正文里的任务链接 → 切回看板并打开任务弹窗 —— */
+setTaskLinkClickHandler((cardId) => {
+  showBoard();
+  openCardModal(cardId);
+});
+
+/* —— 选中正文文字 → 弹出「创建任务」按钮 → 打开任务弹窗（标题预填） —— */
+setSelectionCreateHandler((text) => {
+  openCardModalFromText(text);
+});
 
 /* —— 表单与按钮初始化 —— */
 initCardForm();

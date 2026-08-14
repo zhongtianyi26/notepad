@@ -8,12 +8,15 @@ import {
 } from './state.js';
 import { backendFetch, deleteFromBackend } from './api.js';
 import { render, renderProjects, renderBoard, showBoard, showDocView } from './render.js';
+import { loadContent, getContentJSON, isDirty, applyTaskLinkToSelection } from './editor.js';
 
 // —— 获取器 ——
 const $ = id => document.getElementById(id);
 
 // 打开编辑界面时的 version 快照（乐观锁：保存时带快照版本，编辑期间他人改动才会触发 409）
 let _cardVersion = 0, _colVersion = 0, _docVersion = 0, _projVersion = 0;
+// 是否从正文「选中文字 → 创建任务」进入（新建任务后回写任务链接 mark）
+let _fromSelection = false;
 
 
 /* ============================================================
@@ -56,6 +59,15 @@ export function openCardModal(cardId, colId) {
 
 export function closeCardModal() { $('modal').classList.add('hidden'); }
 
+/** 从正文选中文字创建任务：打开新建任务弹窗，标题预填选中文字 */
+export function openCardModalFromText(text) {
+  const project = getActiveProject();
+  if (!project) return;
+  _fromSelection = true;
+  openCardModal(null, project.columns[0]?.id);
+  $('fTitle').value = text || '';
+}
+
 export function initCardForm() {
   // fColumn 下拉变更时同步到 cardColumn（新建任务时用户选择的列）
   $('fColumn').addEventListener('change', () => {
@@ -93,6 +105,14 @@ export function initCardForm() {
       const id = uid();
       targetCol.cards.push({ id, ...data, column_id: targetCol.id });
       await backendFetch(`/columns/${targetCol.id}/cards`, { method: 'POST', body: JSON.stringify({ id, ...data, tags: JSON.stringify(data.tags) }) });
+      // 若从正文选中创建：给选中文字打任务链接 mark，并静默保存文档（避免跳转后正文丢失）
+      if (_fromSelection) {
+        applyTaskLinkToSelection(id);
+        _fromSelection = false;
+        await persistDoc();
+        save();
+        renderProjects();
+      }
     }
     save(); closeCardModal(); renderBoard();
   });
@@ -201,6 +221,7 @@ export function openDocView(docId, projId) {
   const fStatus = $('docStatus');
   fStatus.innerHTML = `<option value="">无状态（仅侧边栏）</option>` +
     project.columns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  showDocView();   // 先显示视图，确保编辑器在可见容器上初始化
 
   if (docId) {
     const d = project.documents.find(x => x.id === docId);
@@ -208,7 +229,7 @@ export function openDocView(docId, projId) {
     $('docId').value = d.id;
     $('docTitle').value = d.title;
     $('docIntro').value = d.intro || '';
-    $('docContent').value = d.content || '';
+    loadContent(d.content || '');
     $('docAssignee').value = d.assignee || '';
     $('docDue').value = d.due || '';
     $('docPriority').value = d.priority || 'medium';
@@ -219,7 +240,7 @@ export function openDocView(docId, projId) {
     $('docId').value = '';
     $('docTitle').value = '';
     $('docIntro').value = '';
-    $('docContent').value = '';
+    loadContent('');
     $('docAssignee').value = '';
     $('docDue').value = '';
     $('docPriority').value = 'medium';
@@ -227,7 +248,6 @@ export function openDocView(docId, projId) {
     fStatus.value = project.columns[0]?.id || '';
     $('docDeleteBtn').classList.add('hidden');
   }
-  showDocView();
   renderProjects();
   $('docTitle').focus();
 }
@@ -238,14 +258,15 @@ export function closeDocView() {
   render();
 }
 
-async function saveDoc() {
+/** 静默保存当前文档（持久化到 state + 后端），不关闭视图；返回保存后的文档对象 */
+async function persistDoc() {
   const project = state.projects.find(p => p.id === currentDocProjectId);
-  if (!project) return;
+  if (!project) return null;
   const id = $('docId').value;
   const data = {
     title: $('docTitle').value.trim() || '未命名文档',
     intro: $('docIntro').value.trim(),
-    content: $('docContent').value,
+    content: getContentJSON(),
     status: $('docStatus').value,
     assignee: $('docAssignee').value.trim(),
     due: $('docDue').value,
@@ -254,14 +275,23 @@ async function saveDoc() {
   };
   if (id) {
     const d = project.documents.find(x => x.id === id);
+    if (!d) return null;
     Object.assign(d, data);
     const updated = await backendFetch(`/documents/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, tags: JSON.stringify(data.tags), version: _docVersion }) });
     if (updated) d.version = updated.version;
+    return d;
   } else {
     const newId = uid();
-    project.documents.push({ id: newId, ...data });
+    const d = { id: newId, ...data };
+    project.documents.push(d);
+    $('docId').value = newId;   // 回写 id，避免后续保存重复新建
     await backendFetch(`/projects/${project.id}/documents`, { method: 'POST', body: JSON.stringify({ id: newId, ...data, tags: JSON.stringify(data.tags) }) });
+    return d;
   }
+}
+
+async function saveDoc() {
+  await persistDoc();
   save();
   closeDocView();
 }
@@ -271,7 +301,7 @@ export function initDocForm() {
   $('docSaveBtn').onclick = saveDoc;
   $('docBackBtn').onclick = () => {
     const dirty = $('docTitle').value.trim()
-      || $('docContent').value.trim()
+      || isDirty()
       || $('docIntro').value.trim();
     if (dirty && !confirm('放弃未保存的更改？')) return;
     closeDocView();

@@ -9,6 +9,10 @@ wheels/
 # Virtual environments
 .venv
 
+# Node / 前端
+node_modules/
+web/dist/
+
 .workbuddy/
 
 *.db
