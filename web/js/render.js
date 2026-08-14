@@ -14,13 +14,23 @@ import {
 
 
 /* —— 视图切换 —— */
-export function showBoard() {
-  document.getElementById('boardArea').classList.remove('hidden');
+function hideAllViews() {
+  document.getElementById('boardArea').classList.add('hidden');
   document.getElementById('docView').classList.add('hidden');
+  document.getElementById('docListView').classList.add('hidden');
+}
+export function showBoard() {
+  hideAllViews();
+  document.getElementById('boardArea').classList.remove('hidden');
 }
 export function showDocView() {
-  document.getElementById('boardArea').classList.add('hidden');
+  hideAllViews();
   document.getElementById('docView').classList.remove('hidden');
+}
+export function showDocList() {
+  hideAllViews();
+  document.getElementById('docListView').classList.remove('hidden');
+  renderDocList();
 }
 
 
@@ -107,6 +117,47 @@ export function selectProject(id) {
   expandedSet.add(id);
   showBoard();
   render();
+}
+
+
+/* —— 文档总览（表格） —— */
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+export function renderDocList() {
+  const project = getActiveProject();
+  const body = document.getElementById('docListBody');
+  const empty = document.getElementById('docListEmpty');
+  const count = document.getElementById('docListCount');
+  if (!body) return;
+  const docs = project ? [...project.documents] : [];
+  count.textContent = `${docs.length} 个文档`;
+  body.innerHTML = '';
+  empty.classList.toggle('hidden', docs.length > 0);
+
+  const pInfo = (p) => PRIORITY[p] || null;
+
+  docs.forEach(d => {
+    const tr = document.createElement('tr');
+    const pri = pInfo(d.priority);
+    const tagEls = (d.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
+    const due = d.due ? `<span class="due ${d.due < new Date().toISOString().slice(0, 10) ? 'over' : ''}">📅 ${d.due}</span>` : '—';
+    tr.innerHTML = `
+      <td class="dl-title" title="${escapeHtml(d.title)}">${escapeHtml(d.title)}</td>
+      <td>${tagEls || '—'}</td>
+      <td>${pri ? `<span class="priority-badge ${pri.cls}">${pri.label}</span>` : '—'}</td>
+      <td>${d.assignee ? escapeHtml(d.assignee) : '—'}</td>
+      <td>${due}</td>
+      <td class="dl-time">${fmtDateTime(d.created_at)}</td>
+      <td class="dl-time">${fmtDateTime(d.updated_at)}</td>`;
+    tr.onclick = () => openDocView(d.id);
+    body.appendChild(tr);
+  });
 }
 
 

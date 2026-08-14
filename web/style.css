@@ -1189,3 +1189,58 @@ body {
   position: relative;
 }
 
+/* —— 文档总览表格 —— */
+.doc-list-count {
+  font-size: 13px;
+  color: var(--muted, #8a94a6);
+}
+.doc-list-table-wrap {
+  padding: 16px 24px;
+  overflow: auto;
+  flex: 1;
+}
+.doc-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.doc-list-table th,
+.doc-list-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #e3e8f0);
+  white-space: nowrap;
+}
+.doc-list-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface, #fff);
+  font-weight: 600;
+  color: var(--muted, #8a94a6);
+  font-size: 12px;
+}
+.doc-list-table tbody tr {
+  cursor: pointer;
+}
+.doc-list-table tbody tr:hover {
+  background: var(--hover, #f5f7fa);
+}
+.doc-list-table .dl-title {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.doc-list-table .dl-time {
+  color: var(--muted, #8a94a6);
+}
+.doc-list-empty {
+  padding: 48px 0;
+  text-align: center;
+  color: var(--muted, #8a94a6);
+}
+.doc-list-empty.hidden {
+  display: none;
+}
+
+

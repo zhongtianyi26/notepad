@@ -56,6 +56,7 @@
           <div class="topbar-right">
             <button id="deleteProjectBtn" class="btn-danger-ghost" type="button" title="删除当前项目">🗑 删除项目</button>
             <input id="searchInput" class="search" type="text" placeholder="🔍 搜索任务 / 文档…" />
+            <button id="docListBtn" class="btn-ghost">📋 文档总览</button>
             <button id="addDocBtn" class="btn-ghost">📄 新建文档</button>
             <button id="addCardBtn" class="btn-primary">＋ 新建任务</button>
           </div>
@@ -109,6 +110,33 @@
           <div id="docContent" class="doc-content-editor"></div>
         </form>
         <button id="selectionCreateBtn" class="selection-create hidden" type="button">＋ 创建任务</button>
+      </section>
+
+      <!-- 文档总览视图：表格列出项目下所有文档 -->
+      <section id="docListView" class="doc-view hidden">
+        <div class="doc-toolbar">
+          <button id="docListBackBtn" class="btn-ghost" type="button">← 返回看板</button>
+          <div class="doc-toolbar-right">
+            <span id="docListCount" class="doc-list-count"></span>
+          </div>
+        </div>
+        <div class="doc-list-table-wrap">
+          <table class="doc-list-table">
+            <thead>
+              <tr>
+                <th>标题</th>
+                <th>标签</th>
+                <th>优先级</th>
+                <th>负责人</th>
+                <th>截止日期</th>
+                <th>创建时间</th>
+                <th>修改时间</th>
+              </tr>
+            </thead>
+            <tbody id="docListBody"></tbody>
+          </table>
+          <div id="docListEmpty" class="doc-list-empty hidden">暂无文档</div>
+        </div>
       </section>
     </main>
   </div>

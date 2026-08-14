@@ -1,7 +1,7 @@
 /* main.js — 入口：事件绑定、键盘控制、鉴权、启动
    ============================================================ */
 
-import { render, renderBoard, renderProjects, showBoard } from './render.js';
+import { render, renderBoard, renderProjects, showBoard, showDocList } from './render.js';
 import {
   openCardModal, closeCardModal, initCardForm, openCardModalFromText,
   openColModal, closeColModal, initColForm,
@@ -41,6 +41,8 @@ $('addCardBtn').onclick = () => {
   openCardModal(null, project.columns[0]?.id);
 };
 $('addDocBtn').onclick = () => openDocView(null);
+$('docListBtn').onclick = () => showDocList();
+$('docListBackBtn').onclick = () => showBoard();
 $('addProjectBtn').onclick = () => openProjModal(null);
 $('searchInput').addEventListener('input', (e) => {
   setSearchTerm(e.target.value);
@@ -64,6 +66,8 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if ($('docView') && !$('docView').classList.contains('hidden')) {
       $('docBackBtn').click();
+    } else if ($('docListView') && !$('docListView').classList.contains('hidden')) {
+      $('docListBackBtn').click();
     } else {
       closeCardModal(); closeColModal(); closeProjModal();
     }
