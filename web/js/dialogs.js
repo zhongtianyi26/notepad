@@ -8,15 +8,17 @@ import {
 } from './state.js';
 import { backendFetch, deleteFromBackend } from './api.js';
 import { render, renderProjects, renderBoard, showBoard, showDocView } from './render.js';
-import { loadContent, getContentJSON, isDirty, applyTaskLinkToSelection } from './editor.js';
+import { openDoc, closeDoc, applyTaskLinkToSelection, extractTitle } from './editor.js';
 
 // —— 获取器 ——
 const $ = id => document.getElementById(id);
 
 // 打开编辑界面时的 version 快照（乐观锁：保存时带快照版本，编辑期间他人改动才会触发 409）
-let _cardVersion = 0, _colVersion = 0, _docVersion = 0, _projVersion = 0;
+let _cardVersion = 0, _colVersion = 0, _projVersion = 0;
 // 是否从正文「选中文字 → 创建任务」进入（新建任务后回写任务链接 mark）
 let _fromSelection = false;
+// 标题自动同步的 debounce 计时器
+let _titleSyncTimer = null;
 
 
 /* ============================================================
@@ -105,13 +107,10 @@ export function initCardForm() {
       const id = uid();
       targetCol.cards.push({ id, ...data, column_id: targetCol.id });
       await backendFetch(`/columns/${targetCol.id}/cards`, { method: 'POST', body: JSON.stringify({ id, ...data, tags: JSON.stringify(data.tags) }) });
-      // 若从正文选中创建：给选中文字打任务链接 mark，并静默保存文档（避免跳转后正文丢失）
+      // 若从正文选中创建：给选中文字打任务链接 mark（正文走 Yjs 自动同步，无需额外保存）
       if (_fromSelection) {
         applyTaskLinkToSelection(id);
         _fromSelection = false;
-        await persistDoc();
-        save();
-        renderProjects();
       }
     }
     save(); closeCardModal(); renderBoard();
@@ -193,22 +192,16 @@ export async function deleteColumn(colId) {
   if (project.columns.length <= 1) { alert('至少保留一列'); return; }
   const col = findColumn(project, colId);
   if (!col) return;
-  const docCount = project.documents.filter(d => d.status === colId).length;
   const itemCount = col.cards.length;
-  let tip = '确定删除该列？';
-  if (itemCount) tip = `该列有 ${itemCount} 个任务，删除后一并丢失，确定？`;
-  if (docCount) tip += ` 列内 ${docCount} 个文档将转为「无状态」（仅保留在侧边栏）。`;
-  if ((itemCount || docCount) && !confirm(tip)) return;
+  if (itemCount && !confirm(`该列有 ${itemCount} 个任务，删除后一并丢失，确定？`)) return;
   project.columns = project.columns.filter(c => c.id !== colId);
-  // 该列文档转为无状态（仅侧边栏），而非删除
-  project.documents.forEach(d => { if (d.status === colId) d.status = ''; });
   await backendFetch(`/columns/${colId}`, { method: 'DELETE' });
   save(); render();
 }
 
 
 /* ============================================================
- *  文档全页编辑
+ *  文档全页编辑（纯笔记：正文走 Yjs 自动保存，标题自动提取同步）
  * ============================================================ */
 export function openDocView(docId, projId) {
   const pid = projId || activeProjectId;
@@ -218,94 +211,51 @@ export function openDocView(docId, projId) {
   expandedSet.add(pid);
   if (pid !== activeProjectId) { setActiveProjectId(pid); renderProjects(); }
 
-  const fStatus = $('docStatus');
-  fStatus.innerHTML = `<option value="">无状态（仅侧边栏）</option>` +
-    project.columns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
   showDocView();   // 先显示视图，确保编辑器在可见容器上初始化
 
+  let targetId;
   if (docId) {
-    const d = project.documents.find(x => x.id === docId);
-    _docVersion = d.version;
-    $('docId').value = d.id;
-    $('docTitle').value = d.title;
-    $('docIntro').value = d.intro || '';
-    loadContent(d.content || '');
-    $('docAssignee').value = d.assignee || '';
-    $('docDue').value = d.due || '';
-    $('docPriority').value = d.priority || 'medium';
-    $('docTags').value = (d.tags || []).join(', ');
-    fStatus.value = d.status;
-    $('docDeleteBtn').classList.remove('hidden');
+    targetId = docId;
   } else {
-    $('docId').value = '';
-    $('docTitle').value = '';
-    $('docIntro').value = '';
-    loadContent('');
-    $('docAssignee').value = '';
-    $('docDue').value = '';
-    $('docPriority').value = 'medium';
-    $('docTags').value = '';
-    fStatus.value = project.columns[0]?.id || '';
-    $('docDeleteBtn').classList.add('hidden');
+    // 新建：先在后端创建记录（title 默认「未命名文档」），再打开编辑器
+    targetId = uid();
+    project.documents.push({ id: targetId, title: '未命名文档' });
+    backendFetch(`/projects/${pid}/documents`, { method: 'POST', body: JSON.stringify({ id: targetId, title: '未命名文档' }) });
   }
+  $('docId').value = targetId;
+  const ed = openDoc(targetId, '');
+  ed.on('update', scheduleTitleSync);   // 正文变更 → 自动同步标题
   renderProjects();
-  $('docTitle').focus();
 }
 
 export function closeDocView() {
+  clearTimeout(_titleSyncTimer);
+  closeDoc();
   setCurrentDocProjectId(null);
   showBoard();
   render();
 }
 
-/** 静默保存当前文档（持久化到 state + 后端），不关闭视图；返回保存后的文档对象 */
-async function persistDoc() {
-  const project = state.projects.find(p => p.id === currentDocProjectId);
-  if (!project) return null;
-  const id = $('docId').value;
-  const data = {
-    title: $('docTitle').value.trim() || '未命名文档',
-    intro: $('docIntro').value.trim(),
-    content: getContentJSON(),
-    status: $('docStatus').value,
-    assignee: $('docAssignee').value.trim(),
-    due: $('docDue').value,
-    priority: $('docPriority').value,
-    tags: $('docTags').value.split(',').map(s => s.trim()).filter(Boolean),
-  };
-  if (id) {
+/** 标题自动同步：正文变更后 debounce 提取标题写回后端（last-write-wins，无乐观锁） */
+function scheduleTitleSync() {
+  clearTimeout(_titleSyncTimer);
+  _titleSyncTimer = setTimeout(async () => {
+    const project = state.projects.find(p => p.id === currentDocProjectId);
+    if (!project) return;
+    const id = $('docId').value;
+    if (!id) return;
     const d = project.documents.find(x => x.id === id);
-    if (!d) return null;
-    Object.assign(d, data);
-    const updated = await backendFetch(`/documents/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, tags: JSON.stringify(data.tags), version: _docVersion }) });
-    if (updated) d.version = updated.version;
-    return d;
-  } else {
-    const newId = uid();
-    const d = { id: newId, ...data };
-    project.documents.push(d);
-    $('docId').value = newId;   // 回写 id，避免后续保存重复新建
-    await backendFetch(`/projects/${project.id}/documents`, { method: 'POST', body: JSON.stringify({ id: newId, ...data, tags: JSON.stringify(data.tags) }) });
-    return d;
-  }
-}
-
-async function saveDoc() {
-  await persistDoc();
-  save();
-  closeDocView();
+    if (!d) return;
+    const title = extractTitle();
+    if (d.title === title) return;   // 标题未变，跳过
+    d.title = title;
+    await backendFetch(`/documents/${id}`, { method: 'PUT', body: JSON.stringify({ title }) });
+    renderProjects();   // 更新侧边栏标题
+  }, 500);
 }
 
 export function initDocForm() {
-  $('docForm').addEventListener('submit', (e) => { e.preventDefault(); saveDoc(); });
-  $('docSaveBtn').onclick = saveDoc;
-  $('docBackBtn').onclick = () => {
-    const dirty = $('docTitle').value.trim()
-      || isDirty()
-      || $('docIntro').value.trim();
-    if (dirty && !confirm('放弃未保存的更改？')) return;
-    closeDocView();
-  };
+  $('docBackBtn').onclick = () => closeDocView();
   $('docDeleteBtn').onclick = async () => {
     const project = state.projects.find(p => p.id === currentDocProjectId);
     if (!project) return;
@@ -313,7 +263,7 @@ export function initDocForm() {
     if (!confirm('确定删除该文档？')) return;
     project.documents = project.documents.filter(d => d.id !== id);
     await backendFetch(`/documents/${id}`, { method: 'DELETE' });
-    save(); closeDocView();
+    closeDocView();
   };
 }
 

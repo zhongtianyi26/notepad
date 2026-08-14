@@ -12,6 +12,7 @@ wheels/
 # Node / 前端
 node_modules/
 web/dist/
+collab/db/
 
 .workbuddy/
 

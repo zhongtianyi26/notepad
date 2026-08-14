@@ -88,36 +88,20 @@ class ColumnOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ──── Document（文档） ────
+# ──── Document（文档，纯笔记：正文走 Yjs，SQLite 只存 title 索引） ────
 
 class DocumentBase(BaseModel):
     title: str = Field(default="未命名文档", max_length=256)
-    intro: str = ""
-    content: str = ""
-    status: str = ""                # 列 id
-    assignee: str = ""
-    due: str = ""
-    priority: str = "medium"        # high / medium / low
-    tags: str = "[]"                # JSON 字符串
 
 class DocumentCreate(DocumentBase):
     id: str
 
 class DocumentUpdate(BaseModel):
     title: Optional[str] = None
-    intro: Optional[str] = None
-    content: Optional[str] = None
-    status: Optional[str] = None
-    assignee: Optional[str] = None
-    due: Optional[str] = None
-    priority: Optional[str] = None
-    tags: Optional[str] = None
-    version: Optional[int] = None
 
 class DocumentOut(DocumentBase):
     id: str
     project_id: str
-    version: int = 0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

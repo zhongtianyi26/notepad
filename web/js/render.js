@@ -118,12 +118,9 @@ export function renderBoard() {
   document.getElementById('boardTitle').textContent = project.name;
   board.innerHTML = '';
 
-  const docsByCol = {};
-  project.documents.forEach(d => { (docsByCol[d.status] || (docsByCol[d.status] = [])).push(d); });
-
   let total = 0, done = 0;
   project.columns.forEach((col, idx) => {
-    const n = col.cards.length + (docsByCol[col.id] || []).length;
+    const n = col.cards.length;
     total += n;
     if (idx === project.columns.length - 1) done = n;
   });
@@ -144,7 +141,7 @@ export function renderBoard() {
     colEl.innerHTML = `
       <div class="col-head">
         <div class="col-name">${escapeHtml(col.name)}</div>
-        <div class="col-count">${col.cards.length + (docsByCol[col.id] || []).length}</div>
+        <div class="col-count">${col.cards.length}</div>
         <div class="col-actions">
           <button data-act="edit-col" title="编辑列名">✎</button>
           <button data-act="del-col" title="删除列">🗑</button>
@@ -181,14 +178,6 @@ export function renderBoard() {
           if (updated) card.version = updated.version;
           save(); renderBoard();
         }
-      } else if (kind === 'doc') {
-        const doc = project.documents.find(d => d.id === cid);
-        if (doc && doc.status !== col.id) {
-          doc.status = col.id;
-          const updated = await backendFetch(`/documents/${cid}`, { method: 'PUT', body: JSON.stringify({ status: col.id, version: doc.version }) });
-          if (updated) doc.version = updated.version;
-          save(); renderBoard();
-        }
       }
     });
 
@@ -196,11 +185,6 @@ export function renderBoard() {
     col.cards.forEach(card => {
       if (term && !matchCard(card, term)) return;
       body.appendChild(buildCard(card, col.id));
-    });
-    /* 文档卡片 */
-    (docsByCol[col.id] || []).forEach(doc => {
-      if (term && !matchDoc(doc, term)) return;
-      body.appendChild(buildDocCard(doc));
     });
 
     board.appendChild(colEl);
@@ -242,35 +226,6 @@ function buildCard(card, colId) {
   return el;
 }
 
-function buildDocCard(doc) {
-  const el = document.createElement('div');
-  el.className = `card doc p-${doc.priority || 'medium'}`;
-  el.draggable = true;
-  el.dataset.cardId = doc.id;
-  el.dataset.kind = 'doc';
-  const intro = doc.intro ? `<div class="card-intro">${escapeHtml(doc.intro)}</div>` : '';
-  const pBadge = PRIORITY[doc.priority]
-    ? `<span class="priority-badge ${PRIORITY[doc.priority].cls}">${PRIORITY[doc.priority].label}</span>` : '';
-  const due = doc.due ? (() => { const f = formatDue(doc.due); return `<span class="due ${f.over ? 'over' : ''}">📅 ${f.text}</span>`; })() : '';
-  const assignee = doc.assignee ? `<span class="assignee" title="负责人">👤 ${escapeHtml(doc.assignee)}</span>` : '';
-  const tagEls = (doc.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
-  el.innerHTML = `
-    <div class="card-meta">
-      <div class="doc-badge">📄 文档</div>
-      ${pBadge}
-      ${due}
-    </div>
-    <div class="card-title">${escapeHtml(doc.title)}</div>
-    ${intro}
-    <div class="card-bottom">
-      ${assignee}
-      <div class="card-tags">${tagEls}</div>
-    </div>`;
-  el.onclick = () => openDocView(doc.id);
-  bindDrag(el, doc.id, 'doc');
-  return el;
-}
-
 
 /* —— 搜索匹配 —— */
 function matchCard(card, term) {
@@ -278,12 +233,6 @@ function matchCard(card, term) {
     || (card.desc || '').toLowerCase().includes(term)
     || (card.assignee || '').toLowerCase().includes(term)
     || (card.tags || []).some(t => t.toLowerCase().includes(term));
-}
-function matchDoc(doc, term) {
-  return (doc.title || '').toLowerCase().includes(term)
-    || (doc.intro || '').toLowerCase().includes(term)
-    || (doc.assignee || '').toLowerCase().includes(term)
-    || (doc.tags || []).some(t => t.toLowerCase().includes(term));
 }
 
 

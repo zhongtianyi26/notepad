@@ -1,0 +1,14 @@
+{
+  "name": "notepad-collab",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "y-websocket": "^2.0.4",
+    "y-leveldb": "^0.2.0",
+    "ws": "^8.18.0"
+  }
+}

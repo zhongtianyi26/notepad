@@ -74,7 +74,7 @@ export async function syncToBackend(project) {
     body: JSON.stringify({
       name: project.name,
       columns: project.columns.map(c => ({ id: c.id, name: c.name, position: 0 })),
-      documents: project.documents.map(d => ({ ...d, tags: JSON.stringify(d.tags || []) })),
+      documents: project.documents.map(d => ({ id: d.id, title: d.title })),
       cards,
     }),
   });

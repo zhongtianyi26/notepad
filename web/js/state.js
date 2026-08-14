@@ -33,19 +33,9 @@ export function normalize(s) {
     if (!Array.isArray(p.columns)) p.columns = [];
     if (!Array.isArray(p.documents)) p.documents = [];
     p.columns.forEach(c => { if (!Array.isArray(c.cards)) c.cards = []; });
+    // 文档已退化为纯笔记：只有 title（正文走 Yjs，不在此处理）
     p.documents.forEach(d => {
       if (typeof d.title !== 'string' || !d.title) d.title = '未命名文档';
-      if (typeof d.intro !== 'string') d.intro = '';
-      if (typeof d.content !== 'string') d.content = '';
-      // status 为空 → 无状态文档（只在侧边栏，不进看板列）；非空但列已删 → 也视为无状态
-      if (typeof d.status !== 'string') d.status = '';
-      if (d.status && !findColumn(p, d.status)) d.status = '';
-      if (typeof d.assignee !== 'string') d.assignee = '';
-      if (typeof d.due !== 'string') d.due = '';
-      if (typeof d.priority !== 'string') d.priority = 'medium';
-      if (!Array.isArray(d.tags)) {
-        try { d.tags = JSON.parse(d.tags || '[]'); } catch (_) { d.tags = []; }
-      }
     });
     // 卡片 tags 同理
     p.columns.forEach(c => c.cards.forEach(card => {

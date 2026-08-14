@@ -74,46 +74,16 @@
         <section id="board" class="board"></section>
       </div>
 
-      <!-- 文档全页面编辑视图 -->
+      <!-- 文档全页面编辑视图（纯富文本笔记：正文走 Yjs 自动保存，无保存按钮） -->
       <section id="docView" class="doc-view hidden">
         <div class="doc-toolbar">
           <button id="docBackBtn" class="btn-ghost" type="button">← 返回看板</button>
           <div class="doc-toolbar-right">
-            <button id="docDeleteBtn" class="btn-danger hidden" type="button">删除</button>
-            <button id="docSaveBtn" class="btn-primary" type="button">保存</button>
+            <button id="docDeleteBtn" class="btn-danger" type="button">删除</button>
           </div>
         </div>
         <form id="docForm" class="doc-edit">
           <input type="hidden" id="docId" />
-          <input id="docTitle" class="doc-title-input" type="text" placeholder="未命名文档" />
-          <div class="doc-meta-row">
-            <label>状态（选列则进看板，无状态则仅侧边栏）
-              <select id="docStatus"></select>
-            </label>
-          </div>
-          <div class="doc-meta-row">
-            <label>负责人
-              <input id="docAssignee" type="text" placeholder="如：张三" />
-            </label>
-            <label>截止日期
-              <input id="docDue" type="date" />
-            </label>
-          </div>
-          <div class="doc-meta-row">
-            <label>优先级
-              <select id="docPriority">
-                <option value="low">低</option>
-                <option value="medium" selected>中</option>
-                <option value="high">高</option>
-              </select>
-            </label>
-            <label>标签（逗号分隔）
-              <input id="docTags" type="text" placeholder="前端, 紧急" />
-            </label>
-          </div>
-          <label class="doc-label">简介</label>
-          <textarea id="docIntro" class="doc-intro" rows="2" placeholder="一句话摘要，便于在看板卡片上快速了解（可选）"></textarea>
-          <label class="doc-label">正文</label>
           <div id="editorToolbar" class="editor-toolbar"></div>
           <div id="docContent" class="doc-content-editor"></div>
         </form>

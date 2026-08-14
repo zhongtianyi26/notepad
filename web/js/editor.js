@@ -7,6 +7,10 @@
 
 import { Editor, Mark, mergeAttributes } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
+import Collaboration from '@tiptap/extension-collaboration';
+import { WebsocketProvider } from 'y-websocket';
+import * as Y from 'yjs';
+import { prosemirrorJSONToYDoc } from 'y-prosemirror';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
@@ -49,11 +53,16 @@ export const TaskLink = Mark.create({
   },
 });
 
+const WEBSOCKET_URL = 'ws://localhost:1234';
+
 let editor = null;
 let selectionBtn = null;
 let onTaskLinkClick = null;
 let onSelectionCreate = null;
 let pendingSelection = null;   // { from, to, text } 选中的文字范围
+let ydoc = null;
+let provider = null;
+let currentDocId = null;
 
 /** 设置任务链接点击回调（由 main.js 注入 openCardModal 跳转） */
 export function setTaskLinkClickHandler(fn) { onTaskLinkClick = fn; }
@@ -61,42 +70,75 @@ export function setTaskLinkClickHandler(fn) { onTaskLinkClick = fn; }
 /** 设置「选中文字创建任务」回调（由 main.js 注入，传选中文字） */
 export function setSelectionCreateHandler(fn) { onSelectionCreate = fn; }
 
-/** 获取（或懒创建）正文编辑器单例 */
-export function ensureEditor() {
-  if (editor) return editor;
+/** 基础扩展（不含 Collaboration，供迁移旧数据时构建 schema） */
+const baseExtensions = [
+  StarterKit,
+  TaskLink,
+  Underline,
+  Link.configure({ openOnClick: false }),
+  TextAlign.configure({ types: ['heading', 'paragraph'] }),
+  TextStyle,
+  Color,
+  Highlight,
+  Table.configure({ resizable: false }),
+  TableRow,
+  TableHeader,
+  TableCell,
+  TaskList,
+  TaskItem.configure({ nested: true }),
+  Subscript,
+  Superscript,
+];
+
+/** 为文档 docId 打开协同编辑器（Yjs + collaboration）；contentString 为旧 doc JSON 字符串（一次性迁移） */
+export function openDoc(docId, contentString) {
   const el = document.getElementById('docContent');
   selectionBtn = document.getElementById('selectionCreateBtn');
+
+  closeDoc();   // 关闭旧连接
+
+  ydoc = new Y.Doc();
+  provider = new WebsocketProvider(WEBSOCKET_URL, docId, ydoc);
+
   editor = new Editor({
     element: el,
-    extensions: [
-      StarterKit,
-      TaskLink,
-      Underline,
-      Link.configure({ openOnClick: false }),
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      TextStyle,
-      Color,
-      Highlight,
-      Table.configure({ resizable: false }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Subscript,
-      Superscript,
-    ],
-    content: '',
+    extensions: [...baseExtensions, Collaboration.configure({ document: ydoc })],
+  });
+  currentDocId = docId;
+
+  // 首次同步后，若 Y.Doc 为空且带旧正文，则导入（一次性迁移）
+  provider.on('sync', (isSynced) => {
+    if (!isSynced) return;
+    migrateContentToYDoc(ydoc, editor.schema, contentString);
   });
 
+  bindEditorEvents(el, editor);
+  initToolbar(editor);
+  editor.on('selectionUpdate', updateToolbarState);
+  editor.on('transaction', updateToolbarState);
+
+  return editor;
+}
+
+/** 关闭协同编辑器：断开 provider、销毁 editor */
+export function closeDoc() {
+  if (provider) { try { provider.destroy(); } catch (_) {} provider = null; }
+  if (editor) { editor.destroy(); editor = null; }
+  ydoc = null;
+  currentDocId = null;
+  pendingSelection = null;
+  hideSelectionBtn();
+}
+
+function bindEditorEvents(el, editor) {
   // 点击任务链接 → 回调跳转看板
-  el.addEventListener('click', (e) => {
+  el.onclick = (e) => {
     const a = e.target.closest('a[data-card-id]');
     if (a && onTaskLinkClick) {
       e.preventDefault();
       onTaskLinkClick(a.getAttribute('data-card-id'));
     }
-  });
+  };
 
   // 选区变化 → 决定是否显示「创建任务」浮动按钮
   editor.on('selectionUpdate', ({ editor: ed }) => {
@@ -111,23 +153,39 @@ export function ensureEditor() {
   // 编辑器失焦（点击外部）→ 只隐藏浮动按钮；pendingSelection 保留（可能在创建任务流程中）
   editor.on('blur', () => { hideSelectionBtn(); });
 
-  // 工具栏
-  initToolbar(editor);
-  // 更新工具栏激活态
-  editor.on('selectionUpdate', updateToolbarState);
-  editor.on('transaction', updateToolbarState);
-
   if (selectionBtn) {
-    selectionBtn.addEventListener('mousedown', (e) => e.preventDefault());  // 防止抢焦点丢选区
-    selectionBtn.addEventListener('click', () => {
+    selectionBtn.onmousedown = (e) => e.preventDefault();  // 防止抢焦点丢选区
+    selectionBtn.onclick = () => {
       if (onSelectionCreate && pendingSelection) onSelectionCreate(pendingSelection.text);
       hideSelectionBtn();
-    });
+    };
   }
-  return editor;
 }
 
 export function getEditor() { return editor; }
+
+/**
+ * 从正文提取标题（用于侧边栏列表索引）：
+ * 优先第一个 heading 块；没有则取第一个非空段落的文本；都没有返回「未命名文档」。
+ */
+export function extractTitle() {
+  if (!editor) return '未命名文档';
+  let heading = '';
+  let firstPara = '';
+  editor.state.doc.descendants((node) => {
+    if (heading) return false;   // 已找到标题，停止遍历
+    if (node.type.name === 'heading' && node.textContent.trim()) {
+      heading = node.textContent.trim();
+      return false;
+    }
+    if (!firstPara && node.type.name === 'paragraph' && node.textContent.trim()) {
+      firstPara = node.textContent.trim().slice(0, 30);
+    }
+    return true;
+  });
+  return heading || firstPara || '未命名文档';
+}
+
 
 /* ============================================================
  *  工具栏
@@ -137,6 +195,7 @@ let toolbarBtns = [];
 function initToolbar(editor) {
   const bar = document.getElementById('editorToolbar');
   if (!bar) return;
+  bar.innerHTML = '';   // 每次打开文档重建工具栏（绑定新 editor）
 
   const defs = [
     { icon: '↺', title: '撤销', action: () => editor.chain().focus().undo().run(), disabled: () => !editor.can().undo() },
@@ -229,18 +288,6 @@ function promptLink(editor) {
   editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
 }
 
-/** 把 content 字符串（doc JSON 或旧纯文本）加载进编辑器 */
-export function loadContent(contentString) {
-  const ed = ensureEditor();
-  ed.commands.setContent(tryParseDoc(contentString));
-}
-
-/** 导出编辑器内容为 doc JSON 字符串 */
-export function getContentJSON() {
-  if (!editor) return '';
-  return JSON.stringify(editor.getJSON());
-}
-
 /** 编辑器当前是否有非空文本 */
 export function isDirty() {
   if (!editor) return false;
@@ -256,10 +303,6 @@ export function applyTaskLinkToSelection(cardId) {
   hideSelectionBtn();
 }
 
-export function destroyEditor() {
-  if (editor) { editor.destroy(); editor = null; }
-}
-
 /* —— 浮动按钮定位 —— */
 function showSelectionBtn(pos) {
   if (!selectionBtn || !editor) return;
@@ -270,6 +313,25 @@ function showSelectionBtn(pos) {
 }
 function hideSelectionBtn() {
   if (selectionBtn) selectionBtn.classList.add('hidden');
+}
+
+/**
+ * 把旧 doc JSON 字符串（或纯文本）一次性迁移进 Y.Doc。
+ * 仅当 Y.Doc 的 default fragment 为空时执行（避免覆盖已协同的正文）。
+ */
+export function migrateContentToYDoc(ydoc, schema, contentString) {
+  if (!contentString) return false;
+  const frag = ydoc.getXmlFragment('default');
+  if (frag.length > 0) return false;   // 已有协同数据，不迁移
+  try {
+    const json = tryParseDoc(contentString);
+    const migrated = prosemirrorJSONToYDoc(schema, json, 'default');
+    Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(migrated));
+    return true;
+  } catch (e) {
+    console.warn('迁移旧正文失败', e);
+    return false;
+  }
 }
 
 /* —— 兼容旧纯文本 content —— */

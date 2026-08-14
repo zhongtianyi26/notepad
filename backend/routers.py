@@ -132,13 +132,6 @@ def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
             id=doc_data.id,
             project_id=body.id,
             title=doc_data.title,
-            intro=doc_data.intro,
-            content=doc_data.content,
-            status=doc_data.status,
-            assignee=doc_data.assignee,
-            due=doc_data.due,
-            priority=doc_data.priority,
-            tags=doc_data.tags,
         ))
 
     db.commit()
@@ -206,8 +199,6 @@ def update_column(column_id: str, body: ColumnUpdate, db: Session = Depends(get_
 @router.delete("/columns/{column_id}", status_code=204)
 def delete_column(column_id: str, db: Session = Depends(get_db)):
     col = _get_column_or_404(db, column_id)
-    # 清除该列关联的文档 status
-    db.query(Document).filter(Document.status == column_id).update({"status": ""})
     db.delete(col)
     db.commit()
     broadcast(col.project_id)
@@ -278,13 +269,6 @@ def add_document(project_id: str, body: DocumentCreate, db: Session = Depends(ge
         id=body.id,
         project_id=project_id,
         title=body.title,
-        intro=body.intro,
-        content=body.content,
-        status=body.status,
-        assignee=body.assignee,
-        due=body.due,
-        priority=body.priority,
-        tags=body.tags,
     )
     db.add(doc)
     db.commit()
@@ -298,12 +282,9 @@ def update_document(doc_id: str, body: DocumentUpdate, db: Session = Depends(get
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
-    _check_version(doc, body.version)
-    for field in ("title", "intro", "content", "status", "assignee", "due", "priority", "tags"):
-        val = getattr(body, field, None)
-        if val is not None:
-            setattr(doc, field, val)
-    doc.version += 1
+    # title 为 last-write-wins（无乐观锁）：正文走 Yjs 无冲突，标题冲突「最后写的赢」即可
+    if body.title is not None:
+        doc.title = body.title
     db.commit()
     db.refresh(doc)
     broadcast(doc.project_id)
@@ -374,13 +355,6 @@ def sync_project(project_id: str, body: ProjectSync, db: Session = Depends(get_d
             id=doc_data.id,
             project_id=project_id,
             title=doc_data.title,
-            intro=doc_data.intro,
-            content=doc_data.content,
-            status=doc_data.status,
-            assignee=doc_data.assignee,
-            due=doc_data.due,
-            priority=doc_data.priority,
-            tags=doc_data.tags,
         ))
 
     db.commit()
