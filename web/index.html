@@ -74,7 +74,7 @@
         <section id="board" class="board"></section>
       </div>
 
-      <!-- 文档全页面编辑视图（纯富文本笔记：正文走 Yjs 自动保存，无保存按钮） -->
+      <!-- 文档全页面编辑视图：正文走 Yjs 自动保存，元数据变更即存，无保存按钮 -->
       <section id="docView" class="doc-view hidden">
         <div class="doc-toolbar">
           <button id="docBackBtn" class="btn-ghost" type="button">← 返回看板</button>
@@ -84,6 +84,27 @@
         </div>
         <form id="docForm" class="doc-edit">
           <input type="hidden" id="docId" />
+          <input id="docTitle" class="doc-title-input" type="text" placeholder="未命名文档" />
+          <div class="doc-meta-row">
+            <label>标签（逗号分隔）
+              <input id="docTags" type="text" placeholder="前端, 紧急" />
+            </label>
+            <label>优先级
+              <select id="docPriority">
+                <option value="low">低</option>
+                <option value="medium" selected>中</option>
+                <option value="high">高</option>
+              </select>
+            </label>
+          </div>
+          <div class="doc-meta-row">
+            <label>负责人
+              <input id="docAssignee" type="text" placeholder="如：张三" />
+            </label>
+            <label>截止日期
+              <input id="docDue" type="date" />
+            </label>
+          </div>
           <div id="editorToolbar" class="editor-toolbar"></div>
           <div id="docContent" class="doc-content-editor"></div>
         </form>

@@ -78,14 +78,18 @@ class Card(Base):
 
 
 class Document(Base):
-    """文档已退化为「纯笔记」：正文走 Yjs（collab 服务 leveldb 持久化），
-    SQLite 只保留 title 作为列表索引（last-write-wins，无乐观锁）。"""
+    """正文走 Yjs（collab 服务 leveldb 持久化），SQLite 存元数据索引
+    （title/tags/priority/due/assignee，全部 last-write-wins，无乐观锁）。"""
     __tablename__ = "documents"
 
     id = sa.Column(sa.String(32), primary_key=True, index=True)
     project_id = sa.Column(sa.String(32), sa.ForeignKey("projects.id", ondelete="CASCADE"),
                            nullable=False, index=True)
     title = sa.Column(sa.String(256), nullable=False, default="未命名文档")
+    tags = sa.Column(sa.Text, default="[]")          # JSON 数组字符串
+    priority = sa.Column(sa.String(10), default="medium")  # high / medium / low
+    due = sa.Column(sa.String(10), default="")       # ISO 日期 "YYYY-MM-DD"
+    assignee = sa.Column(sa.String(64), default="")
     created_at = sa.Column(sa.DateTime, server_default=func.now())
     updated_at = sa.Column(sa.DateTime, server_default=func.now(), onupdate=func.now())
 

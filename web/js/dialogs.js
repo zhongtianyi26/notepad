@@ -8,7 +8,7 @@ import {
 } from './state.js';
 import { backendFetch, deleteFromBackend } from './api.js';
 import { render, renderProjects, renderBoard, showBoard, showDocView } from './render.js';
-import { openDoc, closeDoc, applyTaskLinkToSelection, extractTitle } from './editor.js';
+import { openDoc, closeDoc, applyTaskLinkToSelection } from './editor.js';
 
 // —— 获取器 ——
 const $ = id => document.getElementById(id);
@@ -17,8 +17,8 @@ const $ = id => document.getElementById(id);
 let _cardVersion = 0, _colVersion = 0, _projVersion = 0;
 // 是否从正文「选中文字 → 创建任务」进入（新建任务后回写任务链接 mark）
 let _fromSelection = false;
-// 标题自动同步的 debounce 计时器
-let _titleSyncTimer = null;
+// 元数据自动同步的 debounce 计时器
+let _metaSyncTimer = null;
 
 
 /* ============================================================
@@ -201,7 +201,7 @@ export async function deleteColumn(colId) {
 
 
 /* ============================================================
- *  文档全页编辑（纯笔记：正文走 Yjs 自动保存，标题自动提取同步）
+ *  文档全页编辑：正文走 Yjs 自动保存，元数据变更即存（last-write-wins）
  * ============================================================ */
 export function openDocView(docId, projId) {
   const pid = projId || activeProjectId;
@@ -216,46 +216,78 @@ export function openDocView(docId, projId) {
   let targetId;
   if (docId) {
     targetId = docId;
+    const d = project.documents.find(x => x.id === docId);
+    if (d) {
+      $('docTitle').value = d.title || '';
+      $('docTags').value = (d.tags || []).join(', ');
+      $('docPriority').value = d.priority || 'medium';
+      $('docAssignee').value = d.assignee || '';
+      $('docDue').value = d.due || '';
+    }
   } else {
-    // 新建：先在后端创建记录（title 默认「未命名文档」），再打开编辑器
+    // 新建：先在后端创建记录（默认元数据），再打开编辑器
     targetId = uid();
-    project.documents.push({ id: targetId, title: '未命名文档' });
-    backendFetch(`/projects/${pid}/documents`, { method: 'POST', body: JSON.stringify({ id: targetId, title: '未命名文档' }) });
+    const defaults = { id: targetId, title: '未命名文档', tags: [], priority: 'medium', due: '', assignee: '' };
+    project.documents.push(defaults);
+    backendFetch(`/projects/${pid}/documents`, { method: 'POST', body: JSON.stringify({ ...defaults, tags: '[]' }) });
+    $('docTitle').value = '';
+    $('docTags').value = '';
+    $('docPriority').value = 'medium';
+    $('docAssignee').value = '';
+    $('docDue').value = '';
   }
   $('docId').value = targetId;
-  const ed = openDoc(targetId, '');
-  ed.on('update', scheduleTitleSync);   // 正文变更 → 自动同步标题
+  openDoc(targetId, '');
   renderProjects();
 }
 
 export function closeDocView() {
-  clearTimeout(_titleSyncTimer);
+  clearTimeout(_metaSyncTimer);
+  syncMeta();   // 立即同步元数据，避免 debounce 未触发就关闭导致丢失
   closeDoc();
   setCurrentDocProjectId(null);
   showBoard();
   render();
 }
 
-/** 标题自动同步：正文变更后 debounce 提取标题写回后端（last-write-wins，无乐观锁） */
-function scheduleTitleSync() {
-  clearTimeout(_titleSyncTimer);
-  _titleSyncTimer = setTimeout(async () => {
-    const project = state.projects.find(p => p.id === currentDocProjectId);
-    if (!project) return;
-    const id = $('docId').value;
-    if (!id) return;
-    const d = project.documents.find(x => x.id === id);
-    if (!d) return;
-    const title = extractTitle();
-    if (d.title === title) return;   // 标题未变，跳过
-    d.title = title;
-    await backendFetch(`/documents/${id}`, { method: 'PUT', body: JSON.stringify({ title }) });
-    renderProjects();   // 更新侧边栏标题
-  }, 500);
+/** 读取元数据表单 */
+function readMetaForm() {
+  return {
+    title: $('docTitle').value.trim() || '未命名文档',
+    tags: $('docTags').value.split(',').map(s => s.trim()).filter(Boolean),
+    priority: $('docPriority').value,
+    due: $('docDue').value,
+    assignee: $('docAssignee').value.trim(),
+  };
+}
+
+/** 立即同步元数据到后端（last-write-wins，无乐观锁） */
+function syncMeta() {
+  const project = state.projects.find(p => p.id === currentDocProjectId);
+  if (!project) return;
+  const id = $('docId').value;
+  if (!id) return;
+  const d = project.documents.find(x => x.id === id);
+  if (!d) return;
+  const data = readMetaForm();
+  Object.assign(d, data);
+  backendFetch(`/documents/${id}`, { method: 'PUT', body: JSON.stringify({ ...data, tags: JSON.stringify(data.tags) }) });
+  renderProjects();
+}
+
+/** 元数据变更即存：debounce 减少请求频率 */
+function scheduleMetaSync() {
+  clearTimeout(_metaSyncTimer);
+  _metaSyncTimer = setTimeout(syncMeta, 500);
 }
 
 export function initDocForm() {
   $('docBackBtn').onclick = () => closeDocView();
+  // 元数据字段变更即存
+  ['docTitle', 'docTags', 'docPriority', 'docAssignee', 'docDue'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('input', scheduleMetaSync);
+  });
   $('docDeleteBtn').onclick = async () => {
     const project = state.projects.find(p => p.id === currentDocProjectId);
     if (!project) return;

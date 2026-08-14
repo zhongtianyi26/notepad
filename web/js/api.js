@@ -74,7 +74,10 @@ export async function syncToBackend(project) {
     body: JSON.stringify({
       name: project.name,
       columns: project.columns.map(c => ({ id: c.id, name: c.name, position: 0 })),
-      documents: project.documents.map(d => ({ id: d.id, title: d.title })),
+      documents: project.documents.map(d => ({
+        id: d.id, title: d.title, tags: JSON.stringify(d.tags || []),
+        priority: d.priority || 'medium', due: d.due || '', assignee: d.assignee || '',
+      })),
       cards,
     }),
   });

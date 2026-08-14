@@ -33,9 +33,15 @@ export function normalize(s) {
     if (!Array.isArray(p.columns)) p.columns = [];
     if (!Array.isArray(p.documents)) p.documents = [];
     p.columns.forEach(c => { if (!Array.isArray(c.cards)) c.cards = []; });
-    // 文档已退化为纯笔记：只有 title（正文走 Yjs，不在此处理）
+    // 文档元数据：补默认值、tags 字符串转数组（正文走 Yjs，不在此处理）
     p.documents.forEach(d => {
       if (typeof d.title !== 'string' || !d.title) d.title = '未命名文档';
+      if (typeof d.priority !== 'string' || !d.priority) d.priority = 'medium';
+      if (typeof d.due !== 'string') d.due = '';
+      if (typeof d.assignee !== 'string') d.assignee = '';
+      if (!Array.isArray(d.tags)) {
+        try { d.tags = JSON.parse(d.tags || '[]'); } catch (_) { d.tags = []; }
+      }
     });
     // 卡片 tags 同理
     p.columns.forEach(c => c.cards.forEach(card => {

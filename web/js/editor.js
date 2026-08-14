@@ -204,28 +204,6 @@ function bindEditorEvents(el, editor) {
 
 export function getEditor() { return editor; }
 
-/**
- * 从正文提取标题（用于侧边栏列表索引）：
- * 优先第一个 heading 块；没有则取第一个非空段落的文本；都没有返回「未命名文档」。
- */
-export function extractTitle() {
-  if (!editor) return '未命名文档';
-  let heading = '';
-  let firstPara = '';
-  editor.state.doc.descendants((node) => {
-    if (heading) return false;   // 已找到标题，停止遍历
-    if (node.type.name === 'heading' && node.textContent.trim()) {
-      heading = node.textContent.trim();
-      return false;
-    }
-    if (!firstPara && node.type.name === 'paragraph' && node.textContent.trim()) {
-      firstPara = node.textContent.trim().slice(0, 30);
-    }
-    return true;
-  });
-  return heading || firstPara || '未命名文档';
-}
-
 
 /* ============================================================
  *  工具栏

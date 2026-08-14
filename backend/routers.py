@@ -132,6 +132,10 @@ def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
             id=doc_data.id,
             project_id=body.id,
             title=doc_data.title,
+            tags=doc_data.tags,
+            priority=doc_data.priority,
+            due=doc_data.due,
+            assignee=doc_data.assignee,
         ))
 
     db.commit()
@@ -269,6 +273,10 @@ def add_document(project_id: str, body: DocumentCreate, db: Session = Depends(ge
         id=body.id,
         project_id=project_id,
         title=body.title,
+        tags=body.tags,
+        priority=body.priority,
+        due=body.due,
+        assignee=body.assignee,
     )
     db.add(doc)
     db.commit()
@@ -282,9 +290,11 @@ def update_document(doc_id: str, body: DocumentUpdate, db: Session = Depends(get
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
-    # title 为 last-write-wins（无乐观锁）：正文走 Yjs 无冲突，标题冲突「最后写的赢」即可
-    if body.title is not None:
-        doc.title = body.title
+    # 元数据 last-write-wins（无乐观锁）：正文走 Yjs 无冲突，元数据单值字段「最后写的赢」即可
+    for field in ("title", "tags", "priority", "due", "assignee"):
+        val = getattr(body, field, None)
+        if val is not None:
+            setattr(doc, field, val)
     db.commit()
     db.refresh(doc)
     broadcast(doc.project_id)
@@ -355,6 +365,10 @@ def sync_project(project_id: str, body: ProjectSync, db: Session = Depends(get_d
             id=doc_data.id,
             project_id=project_id,
             title=doc_data.title,
+            tags=doc_data.tags,
+            priority=doc_data.priority,
+            due=doc_data.due,
+            assignee=doc_data.assignee,
         ))
 
     db.commit()
