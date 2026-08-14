@@ -5,12 +5,12 @@
    支持选中正文文字 → 弹出「创建任务」按钮 → 建任务后回写链接。
    ============================================================ */
 
-import { Editor, Mark, mergeAttributes } from '@tiptap/core';
+import { Editor, Mark, mergeAttributes, Extension } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Collaboration from '@tiptap/extension-collaboration';
 import { WebsocketProvider } from 'y-websocket';
 import * as Y from 'yjs';
-import { prosemirrorJSONToYDoc } from 'y-prosemirror';
+import { prosemirrorJSONToYDoc, yCursorPlugin } from 'y-prosemirror';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
@@ -50,6 +50,37 @@ export const TaskLink = Mark.create({
       setTaskLink: (cardId) => ({ commands }) => commands.setMark(this.name, { cardId }),
       unsetTaskLink: () => ({ commands }) => commands.unsetMark(this.name),
     };
+  },
+});
+
+/* —— 协作光标：显示其他用户的光标与选区（基于 Yjs awareness） —— */
+const CURSOR_COLORS = ['#4c6ef5', '#f08c00', '#7048e8', '#2f9e44', '#e8590c', '#1098ad', '#d6336c', '#e64980'];
+
+function hashString(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/** 当前协作用户 { name, color }，由 main.js 登录后设置 */
+let collabUser = null;
+export function setCollabUser(user) { collabUser = user; }
+
+/** 按用户名生成稳定颜色（同一用户始终同色） */
+export function colorForUser(name) {
+  return CURSOR_COLORS[hashString(String(name || '')) % CURSOR_COLORS.length];
+}
+
+/** 自定义扩展：渲染其他用户的光标/选区（Tiptap 封装 yCursorPlugin） */
+const CollaborationCursor = Extension.create({
+  name: 'collaborationCursor',
+  addOptions() {
+    return { awareness: null };
+  },
+  addProseMirrorPlugins() {
+    const { awareness } = this.options;
+    if (!awareness) return [];
+    return [yCursorPlugin(awareness)];
   },
 });
 
@@ -100,9 +131,18 @@ export function openDoc(docId, contentString) {
   ydoc = new Y.Doc();
   provider = new WebsocketProvider(WEBSOCKET_URL, docId, ydoc);
 
+  // 设置 awareness 用户信息（供其他客户端渲染「谁在编辑」的光标）
+  if (collabUser) {
+    provider.awareness.setLocalStateField('user', collabUser);
+  }
+
   editor = new Editor({
     element: el,
-    extensions: [...baseExtensions, Collaboration.configure({ document: ydoc })],
+    extensions: [
+      ...baseExtensions,
+      Collaboration.configure({ document: ydoc }),
+      CollaborationCursor.configure({ awareness: provider.awareness }),
+    ],
   });
   currentDocId = docId;
 

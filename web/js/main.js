@@ -12,7 +12,7 @@ import {
 import { syncFromBackend, backendFetch, setUnauthorizedHandler, setConflictHandler, fetchProject, connectProjectEvents } from './api.js';
 import { getActiveProject, setSearchTerm, state, normalize } from './state.js';
 import { getUser, clearAuth, initAuth, showAuth, hideAuth } from './auth.js';
-import { setTaskLinkClickHandler, setSelectionCreateHandler } from './editor.js';
+import { setTaskLinkClickHandler, setSelectionCreateHandler, setCollabUser, colorForUser } from './editor.js';
 
 const $ = id => document.getElementById(id);
 
@@ -102,6 +102,8 @@ async function bootstrap() {
   const user = getUser();
   if (!user) { showAuth('login'); return; }
   $('currentUser').textContent = `👤 ${user.username}`;
+  // 设置协作用户身份（供多人光标显示「谁在编辑」）
+  setCollabUser({ name: user.username, color: colorForUser(user.username) });
   const me = await backendFetch('/auth/me');
   if (me) {
     hideAuth();
